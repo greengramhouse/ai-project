@@ -9,10 +9,7 @@ const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || ""
 
 // ฟังก์ชันตรวจสอบ Signature เพื่อความปลอดภัยว่ามาจาก LINE จริงๆ
 function verifySignature(rawBody: string, signature: string): boolean {
-  if (!LINE_CHANNEL_SECRET) {
-    console.warn("⚠️ LINE_CHANNEL_SECRET is not set. Signature verification might fail.")
-    return false
-  }
+  if (!LINE_CHANNEL_SECRET) return false;
   const hash = crypto
     .createHmac("SHA256", LINE_CHANNEL_SECRET)
     .update(rawBody)
@@ -20,7 +17,29 @@ function verifySignature(rawBody: string, signature: string): boolean {
   return hash === signature
 }
 
-// ฟังก์ชันสำหรับส่งข้อความตอบกลับไปยัง LINE
+// 🆕 ฟังก์ชันใหม่: แสดงแอนิเมชันกำลังพิมพ์ (...)
+async function startLoadingAnimation(chatId: string) {
+  try {
+    const response = await fetch("https://api.line.me/v2/bot/chat/loading/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LINE_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        chatId: chatId,
+        loadingSeconds: 10 // แสดงแอนิเมชัน 10 วินาที (ถ้าตอบกลับก่อน แอนิเมชันจะหายไปเอง)
+      }),
+    });
+    
+    if (!response.ok) {
+      console.error("LINE Loading Animation Error:", await response.text());
+    }
+  } catch (error) {
+    console.error("Fetch Error (Loading):", error);
+  }
+}
+
 async function replyLineMessage(replyToken: string, messages: any[]) {
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/reply", {
@@ -45,77 +64,59 @@ async function replyLineMessage(replyToken: string, messages: any[]) {
 
 export async function POST(request: Request) {
   try {
-    // อ่านข้อมูลดิบ (Raw Text) เพื่อนำไปตรวจสอบ Signature ก่อน
     const rawBody = await request.text()
-    
-    // ดึงค่า Signature จาก Header ที่ LINE ส่งมา
     const signature = request.headers.get("x-line-signature") || ""
 
-    // 🔒 ตรวจสอบความปลอดภัย
     if (!verifySignature(rawBody, signature)) {
       console.error("❌ Invalid LINE Signature!")
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
     }
 
-    // เมื่อผ่านการตรวจสอบแล้ว ค่อยแปลงข้อมูลกลับเป็น JSON
     const body = JSON.parse(rawBody)
-
-    // LINE Webhook จะส่ง events มาเป็น Array
     const events = body.events || []
 
     for (const event of events) {
-      // ตรวจสอบว่าเป็น event ประเภทข้อความหรือไม่
       if (event.type === "message") {
         const replyToken = event.replyToken
-        const sourceType = event.source.type // 'user', 'group', หรือ 'room'
+        const sourceType = event.source.type
+        // ดึง chatId มาเพื่อใช้กับ Loading Animation
+        const chatId = event.source.userId || event.source.groupId || event.source.roomId;
 
-        // ---------------------------------------------------------
-        // 1. จัดการข้อความประเภท TEXT
-        // ---------------------------------------------------------
         if (event.message.type === "text") {
           let text = event.message.text.trim()
           const lowerText = text.toLowerCase()
 
-          // ตรวจสอบเงื่อนไขถ้าบอทอยู่ในกลุ่ม (Group/Room)
           const isGroupChat = sourceType === "group" || sourceType === "room"
           let shouldProcessAI = true
 
           if (isGroupChat) {
             if (lowerText.startsWith("ai/")) {
-              text = text.slice(3).trim() // ตัดคำว่า ai/ ออก
+              text = text.slice(3).trim()
             } else if (lowerText.startsWith("bot/")) {
-              text = text.slice(4).trim() // ตัดคำว่า bot/ ออก
+              text = text.slice(4).trim()
             } else {
-              // ถ้าอยู่ในกลุ่ม แต่ไม่ได้ขึ้นต้นด้วย ai/ หรือ bot/ ให้ข้ามไปเลย ไม่ต้องทำอะไร
               shouldProcessAI = false
             }
           }
 
-          // ถ้าผ่านเงื่อนไขให้ประมวลผลต่อ
           if (shouldProcessAI && text.length > 0) {
             
-            // --- 💡 กำหนด Keyword พิเศษตรงนี้ (ไม่ต้องผ่าน AI) ---
+            // 💡 ถ้าเป็น Keyword พิเศษ ตอบทันที ไม่ต้องโชว์ Loading
             if (lowerText === "ติดต่อ" || lowerText === "ติดต่อสอบถาม") {
               await replyLineMessage(replyToken, [{ 
                 type: "text", 
                 text: "สามารถติดต่อห้องวิชาการได้ที่เบอร์ 02-XXX-XXXX ค่ะ" 
               }])
-              continue // จบลูปของ event นี้เลย
-            }
-
-            if (lowerText === "ขอสติกเกอร์") {
-              await replyLineMessage(replyToken, [{ 
-                type: "sticker", 
-                packageId: "446", 
-                stickerId: "1988" 
-              }])
               continue
             }
-            // --------------------------------------------------
 
-            // --- 🤖 ส่งเข้า RAG & Gemini (ถ้าไม่ตรง Keyword) ---
+            // --- 🤖 เริ่มโชว์ Loading Animation ทันทีก่อนไปเรียก AI ---
+            if (chatId) {
+              await startLoadingAnimation(chatId);
+            }
+
             try {
-              // ดึงข้อมูล RAG จาก Database
+              // ⏳ จังหวะนี้ AI กำลังคิด หน้าจอ LINE จะโชว์ ...
               const searchResults = await searchDocuments(text, 3)
               
               let context = ""
@@ -125,7 +126,6 @@ export async function POST(request: Request) {
                 context = "ไม่มีข้อมูลอ้างอิงในฐานข้อมูล"
               }
 
-              // เตรียม Prompt 
               const finalPrompt = `คุณคือ AI ผู้ช่วยตอบคำถามของโรงเรียนชุมชนวัดไทยงาม
 จงตอบคำถามโดยใช้ข้อมูลจาก "ข้อมูลอ้างอิง" ด้านล่างนี้เท่านั้น
 คุณสามารถเรียบเรียงคำตอบใหม่ให้อ่านง่ายและเป็นธรรมชาติได้ ไม่ต้องบอกว่าอ้างอิงมาจากไหน
@@ -138,7 +138,7 @@ ${context}
 
               const aiResponseText = await getGeminiResponse(finalPrompt)
 
-              // ส่งคำตอบ AI กลับไปที่ LINE
+              // ✅ พอ AI คิดเสร็จ ส่งคำตอบกลับไป (Loading Animation จะหายไปอัตโนมัติ)
               await replyLineMessage(replyToken, [{ type: "text", text: aiResponseText }])
 
             } catch (aiError) {
