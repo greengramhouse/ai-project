@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  extensions = [pgvector(map: "vector")]
+}
+
+
+// 3. โมเดลสำหรับเก็บความรู้โรงเรียน (สำหรับทำ RAG)
+model Document {
+  id        String   @id @default(cuid())
+  content   String   @db.Text         // เนื้อหาข้อความ (เช่น ระเบียบการ)
+  metadata  Json?                     // เก็บข้อมูลเพิ่มเติม เช่น แหล่งที่มา, หมวดหมู่
+  
+  // เก็บ Vector สำหรับค้นหาความหมาย (Gemini ใช้ 768 มิติ)
+  // หมายเหตุ: หลังรัน npx prisma db push ต้องไปรัน SQL: CREATE EXTENSION IF NOT EXISTS vector; ใน DB ด้วย
+  embedding Unsupported("vector(3072)")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents") // ชื่อตารางในฐานข้อมูล
+}
+
+// 4. โมเดลสำหรับเก็บประวัติการคุย (ความจำของบอท)
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String   // ไอดีสำหรับแยกห้องแชท (เช่น UUID จากฝั่ง Client)
+  role      String   // "user" (คนถาม) หรือ "model" (Gemini ตอบ)
+  content   String   @db.Text
+  
+  
+  // เก็บแหล่งที่มาว่า AI เอาข้อมูลมาจาก Document ตัวไหนบ้าง (ช่วยให้ตรวจสอบได้)
+  sources   Json?    
+  
+  createdAt DateTime @default(now())
+
+  // ใส่ Index ที่ sessionId เพื่อให้ดึง History ได้เร็วขึ้น
+  @@index([sessionId])
+  @@map("chat_messages")
+}
