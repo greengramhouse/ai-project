@@ -10,7 +10,11 @@ interface Message {
   sources?: any[];
 }
 
-export default function ChatPage() {
+export default function LandingPage() {
+  // --------------------------------------------------------
+  // 1. State สำหรับระบบแชท
+  // --------------------------------------------------------
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-1",
@@ -22,23 +26,46 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // เลื่อนจอลงอัตโนมัติเมื่อมีข้อความใหม่
+  // --------------------------------------------------------
+  // 2. State สำหรับเอฟเฟกต์เมาส์ขยับ (Parallax)
+  // --------------------------------------------------------
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // คำนวณหาจุดศูนย์กลางของจอ
+      const x = (e.clientX - window.innerWidth / 2) / 50;
+      const y = (e.clientY - window.innerHeight / 2) / 50;
+      setMousePos({ x, y });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  // เลื่อนจอแชทลงล่างสุดอัตโนมัติ
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
+    if (isChatOpen) {
+      scrollToBottom();
+    }
+  }, [messages, isLoading, isChatOpen]);
 
+  // --------------------------------------------------------
+  // 3. ฟังก์ชันจัดการการส่งข้อความ (เหมือนเดิมเป๊ะ)
+  // --------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userText = input.trim();
-    setInput(""); // ล้างช่องพิมพ์
+    setInput(""); 
 
-    // 1. นำข้อความผู้ใช้ใส่ในแชท
     const newMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -47,17 +74,14 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, newMessage]);
     setIsLoading(true);
 
-    // สร้าง ID สำหรับข้อความของ AI ที่กำลังจะมา
     const aiMessageId = (Date.now() + 1).toString();
     
-    // เตรียมกล่องข้อความว่างๆ ของ AI ไว้รอรับข้อมูล
     setMessages((prev) => [
       ...prev,
       { id: aiMessageId, role: "assistant", content: "", sources: [] },
     ]);
 
     try {
-      // 2. ยิง API แบบ Stream ไปหา Backend (แก้ URL เป็น /api/ai/steam)
       const response = await fetch("/api/ai/steam", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,7 +90,6 @@ export default function ChatPage() {
 
       if (!response.ok || !response.body) throw new Error("Network response was not ok");
 
-      // 3. อ่านข้อมูลแบบ Stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       
@@ -78,27 +101,17 @@ export default function ChatPage() {
         const { done, value } = await reader.read();
         if (done) break;
 
-        // แปลงข้อมูลที่ได้มาเป็นตัวหนังสือ
         const chunkText = decoder.decode(value, { stream: true });
-        
-        // 🔍 LOG 1: ดูข้อมูลดิบที่เพิ่งเดินทางมาถึงแบบสดๆ
-        // console.log("📦 [Raw Stream Chunk]:", chunkText);
-        
         buffer += chunkText;
         
-        // แยกข้อมูลด้วยบรรทัดใหม่
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // เก็บเศษที่ยังส่งมาไม่ครบไว้รอบถัดไป
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.trim() === "") continue;
           try {
             const parsed = JSON.parse(line);
             
-            // 🔍 LOG 2: ดูข้อมูลที่แยกก้อนและพร้อมใช้งานแล้ว
-            // console.log("🧩 [Parsed Line]:", parsed);
-            
-            // ถ้าเป็นข้อมูลอ้างอิง ให้เก็บลง sources และอัปเดตทันที
             if (parsed.type === "sources") {
               aiSources = parsed.data;
               setMessages((prev) =>
@@ -107,25 +120,18 @@ export default function ChatPage() {
                 )
               );
             } 
-            // ถ้าเป็นข้อความ ให้เอามาทะยอยพิมพ์ (Visual Typewriter Effect)
             else if (parsed.type === "text") {
               const newTextChunk = parsed.data;
               
-              // ลูปแสดงผลทีละตัวอักษรเพื่อรับประกันเอฟเฟกต์ค่อยๆ พิมพ์
               for (let i = 0; i < newTextChunk.length; i++) {
                 aiContent += newTextChunk[i];
                 
-                // อัปเดตหน้าจอแบบ Real-time
                 setMessages((prev) =>
                   prev.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, content: aiContent }
-                      : msg
+                    msg.id === aiMessageId ? { ...msg, content: aiContent } : msg
                   )
                 );
                 
-                // ✨ หัวใจสำคัญ: หน่วงเวลา 15ms ต่อตัวอักษร (ปรับความเร็วได้ตามต้องการ)
-                // ทำให้ถึงแม้หลังบ้านจะส่งมารวดเดียว หน้าบ้านก็ยังค่อยๆ พิมพ์ให้ดูอยู่ดี
                 await new Promise((resolve) => setTimeout(resolve, 15));
               }
             }
@@ -149,91 +155,180 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* ส่วนหัว (Header) */}
-      <header className="bg-white border-b shadow-sm py-4 px-6 flex items-center justify-center sticky top-0 z-10">
-        <h1 className="text-xl font-bold text-gray-800">🏫 โรงเรียนชุมชนวัดไทยงาม AI</h1>
-      </header>
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 font-sans text-white">
+      {/* -------------------------------------------------------- */}
+      {/* เอฟเฟกต์ฉากหลัง (Parallax Background Objects) */}
+      {/* -------------------------------------------------------- */}
+      <div 
+        className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/30 blur-[100px] pointer-events-none transition-transform duration-300 ease-out"
+        style={{ transform: `translate(${mousePos.x * -2}px, ${mousePos.y * -2}px)` }}
+      />
+      <div 
+        className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-purple-600/20 blur-[120px] pointer-events-none transition-transform duration-300 ease-out"
+        style={{ transform: `translate(${mousePos.x * 3}px, ${mousePos.y * 3}px)` }}
+      />
+      <div 
+        className="absolute top-[30%] left-[60%] w-[300px] h-[300px] rounded-full bg-indigo-500/20 blur-[80px] pointer-events-none transition-transform duration-300 ease-out"
+        style={{ transform: `translate(${mousePos.x * -1.5}px, ${mousePos.y * 1.5}px)` }}
+      />
 
-      {/* พื้นที่แสดงข้อความแชท */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl shadow-sm ${
-                  msg.role === "user"
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : "bg-white text-gray-800 border border-gray-100 rounded-tl-none"
-                }`}
-              >
-                {/* เนื้อหาข้อความ */}
-                <span className="whitespace-pre-wrap">{msg.content}</span>
-
-                {/* ส่วนแสดงแหล่งอ้างอิง (ถ้ามี) */}
-                {msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-gray-100">
-                    <p className="text-xs font-semibold text-gray-500 mb-2">อ้างอิงจาก:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {msg.sources.map((source, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-md"
-                        >
-                          {source.metadata?.category || "เอกสาร"} (ความแม่นยำ: {Math.round(source.similarity * 100)}%)
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* อนิเมชั่นจุดไข่ปลาตอนเริ่มรอ (จะหายไปทันทีที่ตัวอักษรแรกเริ่มพิมพ์) */}
-          {isLoading && messages[messages.length - 1]?.content === "" && (
-            <div className="flex justify-start">
-              <div className="bg-white text-gray-500 border border-gray-100 p-4 rounded-2xl rounded-tl-none shadow-sm flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+      {/* -------------------------------------------------------- */}
+      {/* เนื้อหา Landing Page */}
+      {/* -------------------------------------------------------- */}
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center">
+        <div 
+          className="p-8 md:p-12 backdrop-blur-md bg-white/5 border border-white/10 rounded-3xl shadow-2xl max-w-4xl transition-transform duration-500 ease-out"
+          style={{ transform: `translate(${mousePos.x * 0.5}px, ${mousePos.y * 0.5}px)` }}
+        >
+          <div className="inline-block px-4 py-1.5 mb-6 text-sm font-medium tracking-wider text-blue-300 uppercase bg-blue-900/40 rounded-full border border-blue-500/30">
+            Welcome to the future of education
+          </div>
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400">
+            โรงเรียนชุมชนวัดไทยงาม
+          </h1>
+          <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+            ก้าวสู่ยุคใหม่ของการเรียนรู้ด้วยเทคโนโลยี AI อัจฉริยะ 
+            สอบถามข้อมูล ระเบียบการ หรือค้นหาเอกสารต่างๆ ได้ทันทีผ่านผู้ช่วยส่วนตัวของเรา
+          </p>
+          <button 
+            onClick={() => setIsChatOpen(true)}
+            className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-blue-600 rounded-full hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:ring-offset-slate-900 shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)]"
+          >
+            เริ่มต้นพูดคุยกับ AI
+            <svg className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </button>
         </div>
       </main>
 
-      {/* พื้นที่พิมพ์ข้อความ */}
-      <footer className="bg-white border-t p-4 pb-6 sm:pb-4">
-        <div className="max-w-3xl mx-auto">
-          <form
-            onSubmit={handleSubmit}
-            className="flex items-center space-x-2 bg-gray-100 p-1 rounded-full border focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="พิมพ์คำถามของคุณที่นี่..."
-              className="flex-1 bg-transparent px-4 py-3 outline-none text-gray-700"
-              disabled={isLoading}
-            />
-            <button
-              type="submit"
-              disabled={isLoading && input.trim() === ""}
-              className="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </footer>
+      {/* -------------------------------------------------------- */}
+      {/* Floating Chat Widget */}
+      {/* -------------------------------------------------------- */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        
+        {/* หน้าต่างแชท (จะแสดงเมื่อ isChatOpen เป็น true) */}
+        {isChatOpen && (
+          <div className="w-[340px] sm:w-[400px] h-[550px] max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col mb-4 overflow-hidden border border-gray-200 transform origin-bottom-right transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in">
+            
+            {/* Header แชท */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center shadow-md z-10">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <span className="text-xl">🏫</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">ผู้ช่วย AI วัดไทยงาม</h3>
+                  <p className="text-xs text-blue-100 flex items-center">
+                    <span className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                    ออนไลน์พร้อมตอบ
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsChatOpen(false)}
+                className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* พื้นที่แสดงข้อความ */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm text-sm ${
+                    msg.role === "user"
+                      ? "bg-blue-600 text-white rounded-tr-sm"
+                      : "bg-white text-gray-800 border border-gray-100 rounded-tl-sm"
+                  }`}>
+                    <span className="whitespace-pre-wrap leading-relaxed">{msg.content}</span>
+
+                    {/* แหล่งอ้างอิง */}
+                    {msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-gray-100/20">
+                        <p className={`text-[10px] font-semibold mb-1 ${msg.role === "user" ? "text-blue-200" : "text-gray-400"}`}>อ้างอิงจาก:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {msg.sources.map((source, idx) => (
+                            <span key={idx} className={`text-[9px] px-1.5 py-0.5 rounded-md ${msg.role === "user" ? "bg-blue-700 text-blue-100" : "bg-gray-100 text-gray-500"}`}>
+                              {source.metadata?.type === 'pdf' ? '📄' : '📝'} {source.metadata?.source || "เอกสาร"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* อนิเมชั่นกำลังพิมพ์ */}
+              {isLoading && messages[messages.length - 1]?.content === "" && (
+                <div className="flex justify-start">
+                  <div className="bg-white p-4 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 flex space-x-1.5">
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* ช่องพิมพ์ข้อความ */}
+            <div className="p-3 bg-white border-t">
+              <form onSubmit={handleSubmit} className="flex items-center bg-gray-100 p-1 rounded-full border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="พิมพ์คำถามที่นี่..."
+                  className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-gray-700"
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ปุ่มวงกลม (FAB) สำหรับเปิด/ปิดแชท */}
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className={`relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-xl transition-transform duration-300 hover:scale-110 active:scale-95 ${
+            isChatOpen ? "bg-slate-800 rotate-90" : "bg-gradient-to-tr from-blue-600 to-purple-600 animate-bounce hover:animate-none"
+          }`}
+        >
+          {isChatOpen ? (
+            // ไอคอนกากบาท (เมื่อเปิดแชทอยู่)
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            // ไอคอนกล่องแชท (เมื่อปิดแชทอยู่)
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+          )}
+          
+          {/* แจ้งเตือนจุดแดง (ถ้าแชทยังไม่ถูกเปิด) */}
+          {!isChatOpen && (
+            <span className="absolute top-0 right-0 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white"></span>
+            </span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
