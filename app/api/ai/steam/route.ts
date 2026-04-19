@@ -20,13 +20,13 @@ export async function POST(request: Request) {
     console.log("\n📥 [Backend] ได้รับคำถาม:", message)
 
     // 📥 1. บันทึก user message
-    await prisma.chatMessage.create({
-      data: {
-        sessionId,
-        role: "user",
-        content: message
-      }
-    })
+    // await prisma.chatMessage.create({
+    //   data: {
+    //     sessionId,
+    //     role: "user",
+    //     content: message
+    //   }
+    // })
 
     // 🔎 2. ค้นหา RAG
     const searchResults = await searchDocuments(message, 3)
@@ -88,18 +88,18 @@ export async function POST(request: Request) {
         }
 
         // 📥 5. บันทึก AI response (หลัง stream เสร็จ)
-        await prisma.chatMessage.create({
-          data: {
-            sessionId,
-            role: "assistant",
-            content: fullText,
-            sources: searchResults.map(s => ({
-              content: s.content,
-              similarity: s.similarity,
-              source: s.metadata?.source
-            }))
-          }
-        })
+        // await prisma.chatMessage.create({
+        //   data: {
+        //     sessionId,
+        //     role: "assistant",
+        //     content: fullText,
+        //     sources: searchResults.map(s => ({
+        //       content: s.content,
+        //       similarity: s.similarity,
+        //       source: s.metadata?.source
+        //     }))
+        //   }
+        // })
 
         controller.close()
       }
