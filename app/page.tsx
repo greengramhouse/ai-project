@@ -24,7 +24,10 @@ export default function LandingPage() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Refs สำหรับเลื่อนจอและโฟกัสช่องพิมพ์
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null); // ✅ เพิ่ม Ref สำหรับช่อง Input
 
   // --------------------------------------------------------
   // 2. State สำหรับเอฟเฟกต์เมาส์ขยับ (Parallax)
@@ -56,8 +59,19 @@ export default function LandingPage() {
     }
   }, [messages, isLoading, isChatOpen]);
 
+  // ✅ เพิ่ม useEffect สำหรับ Auto-Focus ช่องพิมพ์
+  useEffect(() => {
+    // ถ้าเปิดแชทอยู่ และ ไม่ได้กำลังโหลด (AI ตอบเสร็จแล้ว หรือ เพิ่งเปิดแชท)
+    if (isChatOpen && !isLoading && inputRef.current) {
+      // ใช้ setTimeout เล็กน้อยเพื่อให้แน่ใจว่า DOM อัปเดตเอา attribute 'disabled' ออกไปแล้ว
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [isChatOpen, isLoading]);
+
   // --------------------------------------------------------
-  // 3. ฟังก์ชันจัดการการส่งข้อความ (เหมือนเดิมเป๊ะ)
+  // 3. ฟังก์ชันจัดการการส่งข้อความ
   // --------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,14 +165,13 @@ export default function LandingPage() {
       );
     } finally {
       setIsLoading(false);
+      // เมื่อทำงานตรงนี้เสร็จ isLoading จะเป็น false ซึ่งจะไป trigger useEffect ด้านบนให้ Focus ช่องพิมพ์
     }
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 font-sans text-white">
-      {/* -------------------------------------------------------- */}
-      {/* เอฟเฟกต์ฉากหลัง (Parallax Background Objects) */}
-      {/* -------------------------------------------------------- */}
+      {/* เอฟเฟกต์ฉากหลัง */}
       <div 
         className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/30 blur-[100px] pointer-events-none transition-transform duration-300 ease-out"
         style={{ transform: `translate(${mousePos.x * -2}px, ${mousePos.y * -2}px)` }}
@@ -172,9 +185,7 @@ export default function LandingPage() {
         style={{ transform: `translate(${mousePos.x * -1.5}px, ${mousePos.y * 1.5}px)` }}
       />
 
-      {/* -------------------------------------------------------- */}
       {/* เนื้อหา Landing Page */}
-      {/* -------------------------------------------------------- */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center">
         <div 
           className="p-8 md:p-12 backdrop-blur-md bg-white/5 border border-white/10 rounded-3xl shadow-2xl max-w-4xl transition-transform duration-500 ease-out"
@@ -202,12 +213,9 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* -------------------------------------------------------- */}
       {/* Floating Chat Widget */}
-      {/* -------------------------------------------------------- */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         
-        {/* หน้าต่างแชท (จะแสดงเมื่อ isChatOpen เป็น true) */}
         {isChatOpen && (
           <div className="w-[340px] sm:w-[400px] h-[550px] max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col mb-4 overflow-hidden border border-gray-200 transform origin-bottom-right transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in">
             
@@ -280,11 +288,12 @@ export default function LandingPage() {
             <div className="p-3 bg-white border-t">
               <form onSubmit={handleSubmit} className="flex items-center bg-gray-100 p-1 rounded-full border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <input
+                  ref={inputRef} // ✅ ผูก Ref เข้ากับช่อง input ตรงนี้
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="พิมพ์คำถามที่นี่..."
-                  className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-gray-700"
+                  className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-gray-700 disabled:opacity-50"
                   disabled={isLoading}
                 />
                 <button
@@ -309,18 +318,15 @@ export default function LandingPage() {
           }`}
         >
           {isChatOpen ? (
-            // ไอคอนกากบาท (เมื่อเปิดแชทอยู่)
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           ) : (
-            // ไอคอนกล่องแชท (เมื่อปิดแชทอยู่)
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
           )}
           
-          {/* แจ้งเตือนจุดแดง (ถ้าแชทยังไม่ถูกเปิด) */}
           {!isChatOpen && (
             <span className="absolute top-0 right-0 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

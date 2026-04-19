@@ -1,3 +1,5 @@
+//ไฟลนี้ไม่ได้ใช้ในโปรเจคนี้ แต่เป็นตัวอย่างของ RAG Service ที่สามารถนำไปปรับใช้ได้ในอนาคต
+
 import { prisma } from "../prisma";
 import { generateEmbedding } from "./gemini";
 

@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma"
-// เปลี่ยนมาเรียกใช้ฟังก์ชันที่คุณเขียน fetch สำเร็จ (สมมติว่าคุณเก็บไฟล์นี้ไว้ที่ lib/ai/gemini.ts)
 import { generateEmbedding } from "@/lib/ai/gemini"
 
 export interface SearchResult {

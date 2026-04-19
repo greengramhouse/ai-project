@@ -2,6 +2,11 @@ import { prisma } from "@/lib/prisma"
 import { getGeminiResponseStream } from "@/lib/ai/gemini"
 import { searchDocuments } from "@/lib/ai/vector-search"
 import { randomUUID } from "crypto"
+import { SYSTEM_CORE_KNOWLEDGE } from "@/lib/ai/knonwledgeSystem"
+
+
+
+
 
 export async function POST(request: Request) {
   try {
@@ -11,9 +16,7 @@ export async function POST(request: Request) {
       return new Response("Message is required", { status: 400 })
     }
 
-    // ✅ สร้าง sessionId ถ้ายังไม่มี
     const sessionId = clientSessionId || randomUUID()
-
     console.log("\n📥 [Backend] ได้รับคำถาม:", message)
 
     // 📥 1. บันทึก user message
@@ -31,43 +34,29 @@ export async function POST(request: Request) {
 
     const encoder = new TextEncoder()
 
-    // ❗ ถ้าไม่เจอข้อมูล
-    if (searchResults.length === 0) {
-      const readable = new ReadableStream({
-        start(controller) {
-          controller.enqueue(
-            encoder.encode(JSON.stringify({ type: "sources", data: [] }) + "\n")
-          )
-          controller.enqueue(
-            encoder.encode(
-              JSON.stringify({
-                type: "text",
-                data: "ขออภัยค่ะ ไม่มีข้อมูลในส่วนนี้"
-              }) + "\n"
-            )
-          )
-          controller.close()
-        }
-      })
-
-      return new Response(readable, {
-        headers: { "Content-Type": "text/plain; charset=utf-8" }
-      })
-    }
+    // ❌ ลบเงื่อนไข if (searchResults.length === 0) ตรงนี้ออกไปเลย ❌
 
     // 🧠 3. สร้าง prompt
-    const context = searchResults.map(d => `- ${d.content}`).join("\n")
+    // ✅ จัดการกรณีที่หาข้อมูลไม่เจอ ให้ส่ง string ว่าง หรือข้อความแจ้ง AI ไปแทน
+    const context = searchResults.length > 0 
+      ? searchResults.map(d => `- ${d.content}`).join("\n") 
+      : "- ไม่มีข้อมูลเพิ่มเติมจากฐานข้อมูลเอกสาร -";
 
-const finalPrompt = `คุณคือ "AI เจ้าหน้าที่ธุรการ" ผู้ช่วยใจดีของโรงเรียนชุมชนวัดไทยงาม
-  
+    // ✅ ปรับ Prompt เล็กน้อยตรงกฎข้อ 1 ให้สมบูรณ์ขึ้น (ในโค้ดเดิมเขียนค้างไว้)
+    const finalPrompt = `คุณคือ "AI เจ้าหน้าที่ธุรการ" ผู้ช่วยใจดีของโรงเรียนชุมชนวัดไทยงาม
+    ${SYSTEM_CORE_KNOWLEDGE}
+
   กฎการปฏิบัติงาน:
-  1. การทักทาย: หากผู้ใช้พิมพ์คำทักทายทั่วไป (เช่น สวัสดี, ดีจ้า, ขอบคุณ) ให้ตอบกลับอย่างสุภาพ เป็นมิตร และเสนอตัวช่วยเหลือ โดยไม่ต้องสนบริบท (Context)
-  2. การตอบคำถาม: หากผู้ใช้ถามคำถาม ให้ตอบโดยอิงจากข้อมูลในช่อง [CONTEXT] ด้านล่างนี้เท่านั้น ห้ามแต่งเรื่องหรือเดาเอาเองเด็ดขาด
-  3. หากตอบไม่ได้: หากคำถามนั้นไม่มีข้อมูลระบุไว้ใน [CONTEXT] ให้ตอบอย่างสุภาพว่า "ขออภัยค่ะ ระบบยังไม่มีข้อมูลในส่วนนี้ ลองสอบถามคุณครูฝ่ายธุรการโดยตรงนะคะ" หรือตอบในประเด็นที่ไกล้เคียงกันมากที่สุด
-  4. อาจตอบเพิ่มเติม : หากเป็นเรื่องการขอความช่วยเหลือด้านการร่างหนังสือราชการ หรือ ร่างจดหมายนำส่งต่างๆ หรือคำสั่งแต่งตั้ง เพื่อให้เหมาะสมกับเป็นเจ้าหน้าที่ธุรการ
+  1. หากผู้ใช้ถามเรื่องอื่นที่ 'ไม่เกี่ยวข้อง' กับโรงเรียน, การเรียนการสอน, งานธุรการ หรือระบบฐานข้อมูล (เช่น ถามเรื่องการเมือง สภาพอากาศ แต่งนิยาย เขียนโค้ด) ให้ปฏิเสธอย่างสุภาพ
+  2. การทักทาย: หากผู้ใช้พิมพ์คำทักทายทั่วไป (เช่น สวัสดี, ดีจ้า, ขอบคุณ) ให้ตอบกลับอย่างสุภาพ เป็นมิตร และเสนอตัวช่วยเหลือ โดยไม่ต้องสนบริบท (Context)
+  3. การตอบคำถาม: 
+   - ลำดับแรก: ตรวจสอบข้อมูลจาก [SYSTEM_CORE_KNOWLEDGE] ก่อนเสมอ
+   - ลำดับที่สอง: ตรวจสอบข้อมูลจาก [CONTEXT ข้อมูลจากเอกสาร] 
+   - หากไม่พบข้อมูลทั้งสองส่วน ให้ตอบว่า "ขออภัยค่ะ ระบบยังไม่มีข้อมูลในส่วนนี้ ลองสอบถามคุณครูฝ่ายธุรการโดยตรงที่เบอร์ 0817410181 นะคะ"
+   4. อาจตอบเพิ่มเติม: หากเป็นเรื่องการขอความช่วยเหลือด้านการร่างหนังสือราชการ หรือ ร่างจดหมายนำส่งต่างๆ หรือคำสั่งแต่งตั้ง เพื่อให้เหมาะสมกับเป็นเจ้าหน้าที่ธุรการ
   
   [CONTEXT ข้อมูลที่ค้นพบ]:
-  ${context ? context : "ไม่มีข้อมูลที่เกี่ยวข้อง (อาจเป็นเพราะผู้ใช้แค่ทักทาย หรือถามนอกเรื่อง)"}
+  ${context}
   
   [ข้อความจากผู้ใช้]: ${message}`;
 
