@@ -57,7 +57,8 @@ model UserProfile {
   lineUserId  String   @unique // รหัสผู้ใช้จาก LINE (ใช้อ้างอิงหลัก)
   displayName String?          // ชื่อผู้ใช้ใน LINE
   pictureUrl  String?          // รูปโปรไฟล์
-  
+  firstName   String?
+  lastName    String?
   // Relations: เชื่อมไปยังประวัติแชทและเซสชัน OCR
   ocrSessions OcrSession[]
   
