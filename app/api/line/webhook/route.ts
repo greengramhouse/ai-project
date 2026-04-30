@@ -8,6 +8,9 @@ import { getLineMessageContent } from "@/lib/line-webhook/getFile"
 import { processTyphoonOCR } from "@/lib/line-webhook/typhoon"
 import { ensureUserProfile } from "@/lib/line-webhook/action_profile"
 
+// ==========================================
+// 📝 MESSAGE HANDLERS (แยกการจัดการข้อความ)
+// ==========================================
 
 // ฟังก์ชันสำหรับจัดการ Keyword โดยเฉพาะ
 function handleKeywordMessage(text: string): any[] | null {
@@ -30,90 +33,66 @@ function handleKeywordMessage(text: string): any[] | null {
   return null;
 }
 
-export async function POST(request: Request) {
-  try {
-    const rawBody = await request.text()
-    const signature = request.headers.get("x-line-signature") || ""
+// 📌 จัดการกรณีเป็น "ข้อความ"
+async function handleTextMessage(event: any, userId: string, chatId: string, replyToken: string) {
+  let text = event.message.text.trim();
+  const lowerText = text.toLowerCase();
 
-    if (!verifySignature(rawBody, signature)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+  // 1. จัดการคำสั่ง "ocr"
+  if (lowerText === "ocr" && userId) {
+    // 🆕 แก้ปัญหาการใช้งานในกลุ่ม: ตรวจสอบและบันทึกโปรไฟล์ก่อนสร้าง Session เสมอ
+    // ป้องกัน Error ฐานข้อมูลกรณีผู้ใช้ยังไม่ได้แอดบอทเป็นเพื่อน
+    await ensureUserProfile(userId);
+
+    const expires = new Date(Date.now() + 5 * 60 * 1000); 
+    await prisma.ocrSession.create({
+      data: { lineUserId: userId, status: "WAITING_FOR_IMAGE", expiresAt: expires }
+    });
+    return replyLineMessage(replyToken, [{ 
+      type: "text", 
+      text: "ระบบพร้อมแล้วค่ะ 📸 กรุณาส่งรูปภาพที่ต้องการให้อ่านข้อความมาได้เลยค่ะ (รูปจะหมดอายุใน 5 นาที)" 
+    }]);
+  }
+
+  // 2. หากพิมพ์ข้อความอื่น ให้ยกเลิกโหมด OCR ที่ค้างอยู่
+  if (userId) {
+    await prisma.ocrSession.updateMany({
+      where: { lineUserId: userId, status: "WAITING_FOR_IMAGE" },
+      data: { status: "CANCELLED" }
+    });
+  }
+
+  // 3. กรองแชทกลุ่ม (ถ้าเป็นกลุ่ม ต้องมีคำนำหน้า ai/ หรือ bot/)
+  const isGroupChat = event.source.type === "group" || event.source.type === "room";
+  if (isGroupChat) {
+    if (lowerText.startsWith("ai/")) {
+      text = text.slice(3).trim();
+    } else if (lowerText.startsWith("bot/")) {
+      text = text.slice(4).trim();
+    } else {
+      return; // ไม่ได้เรียกบอท ให้จบรอบการทำงานทันที
     }
+  }
 
-    const body = JSON.parse(rawBody)
-    const events = body.events || []
+  if (text.length === 0) return;
 
-    for (const event of events) {
-      const userId = event.source.userId; 
-      const chatId = event.source.groupId || event.source.roomId || userId;
-      const replyToken = event.replyToken;
+  // 4. เช็ค Keyword ก่อนส่งให้ AI
+  const keywordReplyMessages = handleKeywordMessage(text);
+  if (keywordReplyMessages !== null) {
+    return replyLineMessage(replyToken, keywordReplyMessages);
+  }
 
-      if (userId) {
-        await ensureUserProfile(userId);
-      }
+  // 5. ค้นหาข้อมูล RAG และส่งให้ Gemini ประมวลผล
+  if (chatId) await startLoadingAnimation(chatId);
 
-      // ==========================================
-      // 📝 กรณีผู้ใช้ส่ง "ข้อความ" (Text)
-      // ==========================================
-      if (event.type === "message" && event.message.type === "text") {
-        let text = event.message.text.trim();
-        const lowerText = text.toLowerCase();
+  try {
+    const searchResults = await searchDocuments(text, 3)
+    const context = searchResults.length > 0 
+      ? searchResults.map((doc: any) => `- ${doc.content}`).join("\n") 
+      : "- ไม่มีข้อมูลเพิ่มเติมจากฐานข้อมูลเอกสาร -";
 
-        if (lowerText === "ocr" && userId) {
-          const expires = new Date(Date.now() + 5 * 60 * 1000); 
-          
-          await prisma.ocrSession.create({
-            data: {
-              lineUserId: userId,
-              status: "WAITING_FOR_IMAGE",
-              expiresAt: expires
-            }
-          });
+    const finalPrompt = `คุณคือ "AI เจ้าหน้าที่ธุรการ" ผู้ช่วยใจดีของโรงเรียนชุมชนวัดไทยงาม
 
-          await replyLineMessage(replyToken, [{ 
-            type: "text", 
-            text: "ระบบพร้อมแล้วค่ะ 📸 กรุณาส่งรูปภาพที่ต้องการให้อ่านข้อความมาได้เลยค่ะ (รูปจะหมดอายุใน 5 นาที)" 
-          }]);
-          continue; 
-        }
-
-        if (userId) {
-          await prisma.ocrSession.updateMany({
-            where: { lineUserId: userId, status: "WAITING_FOR_IMAGE" },
-            data: { status: "CANCELLED" }
-          });
-        }
-
-        const sourceType = event.source.type
-        const isGroupChat = sourceType === "group" || sourceType === "room"
-        let shouldProcess = true
-
-        if (isGroupChat) {
-          if (lowerText.startsWith("ai/")) {
-            text = text.slice(3).trim()
-          } else if (lowerText.startsWith("bot/")) {
-            text = text.slice(4).trim()
-          } else {
-            shouldProcess = false
-          }
-        }
-
-        if (shouldProcess && text.length > 0) {
-          const keywordReplyMessages = handleKeywordMessage(text);
-          if (keywordReplyMessages !== null) {
-            await replyLineMessage(replyToken, keywordReplyMessages);
-            continue; 
-          }
-
-          if (chatId) await startLoadingAnimation(chatId);
-
-          try {
-            const searchResults = await searchDocuments(text, 3)
-            const context = searchResults.length > 0 
-              ? searchResults.map((doc) => `- ${doc.content}`).join("\n") 
-              : "- ไม่มีข้อมูลเพิ่มเติมจากฐานข้อมูลเอกสาร -";
-
-            const finalPrompt = `คุณคือ "AI เจ้าหน้าที่ธุรการ" ผู้ช่วยใจดีของโรงเรียนชุมชนวัดไทยงาม
-  
 [SYSTEM_CORE_KNOWLEDGE: ข้อมูลพื้นฐานที่ต้องรู้]:
 ${SYSTEM_CORE_KNOWLEDGE}
 
@@ -122,56 +101,97 @@ ${context}
 
 [ข้อความจากผู้ใช้]: ${text}`;
 
-            const aiResponseText = await getGeminiResponse(finalPrompt);
-            await replyLineMessage(replyToken, [{ type: "text", text: aiResponseText }]);
+    const aiResponseText = await getGeminiResponse(finalPrompt);
+    await replyLineMessage(replyToken, [{ type: "text", text: aiResponseText }]);
 
-          } catch (aiError) {
-            console.error("AI Error:", aiError)
-            await replyLineMessage(replyToken, [{ 
-              type: "text", 
-              text: "ขออภัยค่ะ ระบบ AI ขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ" 
-            }])
-          }
-        }
-      }
+  } catch (aiError) {
+    console.error("AI Error:", aiError)
+    await replyLineMessage(replyToken, [{ 
+      type: "text", 
+      text: "ขออภัยค่ะ ระบบ AI ขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งนะคะ" 
+    }])
+  }
+}
 
-      // ==========================================
-      // 📸 กรณีผู้ใช้ส่ง "รูปภาพ" (Image)
-      // ==========================================
-      else if (event.type === "message" && event.message.type === "image" && userId) {
-        
-        const activeSession = await prisma.ocrSession.findFirst({
-          where: {
-            lineUserId: userId,
-            status: "WAITING_FOR_IMAGE",
-            expiresAt: { gt: new Date() }
-          },
-          orderBy: { createdAt: "desc" }
-        });
+// 📌 จัดการกรณีเป็น "รูปภาพ"
+async function handleImageMessage(event: any, userId: string, chatId: string, replyToken: string) {
+  if (!userId) return;
 
-        if (activeSession) {
-          await prisma.ocrSession.update({
-            where: { id: activeSession.id },
-            data: { status: "COMPLETED" }
-          });
-          
-          await startLoadingAnimation(chatId);
-          
-          const imageBuffer = await getLineMessageContent(event.message.id);
-          
-          if (!imageBuffer) {
-            await replyLineMessage(replyToken, [{ type: "text", text: "ขออภัยค่ะ ไม่สามารถดาวน์โหลดรูปภาพจากระบบ LINE ได้" }]);
-            continue;
-          }
+  // เช็คว่าผู้ใช้อยู่ในโหมดรอส่งรูปหรือไม่
+  const activeSession = await prisma.ocrSession.findFirst({
+    where: {
+      lineUserId: userId,
+      status: "WAITING_FOR_IMAGE",
+      expiresAt: { gt: new Date() }
+    },
+    orderBy: { createdAt: "desc" }
+  });
 
-          const extractedText = await processTyphoonOCR(imageBuffer);
+  if (!activeSession) return; // หากไม่ได้สั่ง OCR ไว้ ให้ข้ามรูปนี้ไป
 
-          await replyLineMessage(replyToken, [{ 
-            type: "text", 
-            text: `📝 ข้อความที่อ่านได้จากรูปภาพ:\n\n${extractedText}` 
-          }]);
-        }
-      }
+  // อัปเดตสถานะว่าได้รับภาพและเริ่มทำงานแล้ว
+  await prisma.ocrSession.update({
+    where: { id: activeSession.id },
+    data: { status: "COMPLETED" }
+  });
+  
+  await startLoadingAnimation(chatId);
+  
+  const imageBuffer = await getLineMessageContent(event.message.id);
+  if (!imageBuffer) {
+    return replyLineMessage(replyToken, [{ type: "text", text: "ขออภัยค่ะ ไม่สามารถดาวน์โหลดรูปภาพจากระบบ LINE ได้" }]);
+  }
+
+  // ส่งทำ OCR และตอบกลับ
+  const extractedText = await processTyphoonOCR(imageBuffer);
+  await replyLineMessage(replyToken, [{ 
+    type: "text", 
+    text: `📝 ข้อความที่อ่านได้จากรูปภาพ:\n\n${extractedText}` 
+  }]);
+}
+
+// ==========================================
+// 🚀 MAIN EVENT ROUTER (กระจายงาน)
+// ==========================================
+async function processLineEvent(event: any) {
+  const userId = event.source.userId; 
+  const chatId = event.source.groupId || event.source.roomId || userId;
+  const replyToken = event.replyToken;
+
+  // แยกประเภท Event ไปยังฟังก์ชันย่อย
+  if (event.type === "follow") {
+    // ดึงและบันทึกโปรไฟล์เฉพาะตอนที่ผู้ใช้กดเพิ่มเพื่อน หรือปลดบล็อกเท่านั้น (เพื่อลดภาระการทำงาน)
+    if (userId) {
+      await ensureUserProfile(userId);
+    }
+  } else if (event.type === "message") {
+    if (event.message.type === "text") {
+      await handleTextMessage(event, userId, chatId, replyToken);
+    } else if (event.message.type === "image") {
+      await handleImageMessage(event, userId, chatId, replyToken);
+    }
+  }
+}
+
+// ==========================================
+// 🌐 WEBHOOK ENDPOINT
+// ==========================================
+export async function POST(request: Request) {
+  try {
+    const rawBody = await request.text()
+    const signature = request.headers.get("x-line-signature") || ""
+
+    // เช็คความปลอดภัย
+    if (!verifySignature(rawBody, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+    }
+
+    const body = JSON.parse(rawBody)
+    const events = body.events || []
+
+    // วนลูปจัดการแต่ละ Event
+    for (const event of events) {
+      await processLineEvent(event);
     }
 
     return NextResponse.json({ status: "success" }, { status: 200 })
