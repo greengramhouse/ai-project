@@ -3,8 +3,10 @@ import { getGeminiResponse } from "@/lib/ai/gemini"
 import crypto from "crypto"
 import { searchDocuments } from "@/lib/ai/vector-search"
 import { SYSTEM_CORE_KNOWLEDGE } from "@/lib/ai/knonwledgeSystem"
-import { prisma } from "@/lib/prisma"
+import { PrismaClient } from "@prisma/client"
 
+// สร้าง Instance ของ Prisma
+const prisma = new PrismaClient()
 
 // เตรียม Environment Variables
 const LINE_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || ""
@@ -21,7 +23,7 @@ function verifySignature(rawBody: string, signature: string): boolean {
   return hash === signature
 }
 
-// 🆕 ฟังก์ชันสำหรับดึงข้อมูลโปรไฟล์จาก LINE API
+// ฟังก์ชันสำหรับดึงข้อมูลโปรไฟล์จาก LINE API
 async function getLineUserProfile(userId: string) {
   try {
     const response = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
@@ -35,7 +37,7 @@ async function getLineUserProfile(userId: string) {
   return null;
 }
 
-// 🆕 ฟังก์ชันสำหรับบันทึก/อัปเดต UserProfile ลง Database
+// ฟังก์ชันสำหรับบันทึก/อัปเดต UserProfile ลง Database
 async function ensureUserProfile(userId: string) {
   try {
     let user = await prisma.userProfile.findUnique({ where: { lineUserId: userId } });
@@ -131,19 +133,38 @@ async function processTyphoonOCR(imageBuffer: Buffer): Promise<string> {
           {
             role: "user",
             content: [
-              { type: "text", text: "กรุณาดึงข้อความทั้งหมดจากรูปภาพนี้ให้ถูกต้องและแม่นยำที่สุด" },
+              // 🛠️ แก้ไข: บังคับให้ตอบเป็นภาษาไทย และห้ามหลุดข้อความคำสั่งภาษาอังกฤษเด็ดขาด
+              { type: "text", text: "กรุณาดึงข้อความจากรูปภาพนี้ออกมาให้ถูกต้อง ตอบกลับมาเป็นเนื้อหาที่อยู่ในภาพเท่านั้น ห้ามแสดงข้อความที่เป็นคำสั่ง (Instructions) ภาษาอังกฤษ หรือคำอธิบายแปลกปลอมเด็ดขาด ให้ตอบผลลัพธ์เป็นภาษาไทย" },
               { type: "image_url", image_url: { url: dataUrl } }
             ]
           }
         ],
-        max_tokens: 1000,
-        temperature: 0.1
+        max_tokens: 2000,
+        temperature: 0.01 // 🛠️ คงค่านี้ไว้ให้นิ่งที่สุด
       })
     });
 
     if (!response.ok) throw new Error(`API Error: ${response.status}`);
     const data = await response.json();
-    return data.choices[0].message.content.trim(); 
+    let extractedText = data.choices[0].message.content.trim(); 
+
+    // 🛠️ FIX: ดักจับและลบข้อความ Prompt Instructions (Prompt Leakage) ภาษาอังกฤษทิ้งทั้งหมดให้เด็ดขาด
+    // 1. ตัดตั้งแต่คำว่า "Extract all text" ไปจนจบรูปแบบ checkbox
+    const leakPattern1 = /Extract all text from the image[\s\S]*?☑ for checked boxes\.?/gi;
+    extractedText = extractedText.replace(leakPattern1, '').trim();
+    
+    // 2. ดักอีกชั้น เผื่อโมเดลคายคำสั่งส่วน Instructions: ออกมาแค่บางส่วน
+    const leakPattern2 = /Instructions:[\s\S]*?(<\/figure>|- Checkboxes:[\s\S]*?boxes\.)/gi;
+    extractedText = extractedText.replace(leakPattern2, '').trim();
+
+    // ลบเศษแท็กที่อาจหลงเหลือ
+    extractedText = extractedText.replace(/```markdown/gi, '').replace(/```/gi, '').trim();
+
+    if (!extractedText) {
+      return "ดึงข้อความสำเร็จ แต่ไม่พบตัวอักษรในภาพค่ะ";
+    }
+
+    return extractedText;
     
   } catch (error) {
     console.error("Typhoon OCR Request Error:", error);
@@ -189,7 +210,6 @@ export async function POST(request: Request) {
       const chatId = event.source.groupId || event.source.roomId || userId;
       const replyToken = event.replyToken;
 
-      // 🆕 1. ตรวจสอบและบันทึก Profile ของผู้ใช้ (ถ้ามี userId)
       if (userId) {
         await ensureUserProfile(userId);
       }
@@ -201,9 +221,8 @@ export async function POST(request: Request) {
         let text = event.message.text.trim();
         const lowerText = text.toLowerCase();
 
-        // 🆕 2. ดักจับคำสั่ง "ocr" และสร้าง Session ใน Database
         if (lowerText === "ocr" && userId) {
-          const expires = new Date(Date.now() + 5 * 60 * 1000); // กำหนดเวลา 5 นาที
+          const expires = new Date(Date.now() + 5 * 60 * 1000); 
           
           await prisma.ocrSession.create({
             data: {
@@ -220,7 +239,6 @@ export async function POST(request: Request) {
           continue; 
         }
 
-        // 🆕 3. หากผู้ใช้พิมพ์ข้อความอื่น ให้ยกเลิกโหมด OCR ที่ค้างอยู่ (เปลี่ยนสถานะเป็น CANCELLED)
         if (userId) {
           await prisma.ocrSession.updateMany({
             where: { lineUserId: userId, status: "WAITING_FOR_IMAGE" },
@@ -228,7 +246,6 @@ export async function POST(request: Request) {
           });
         }
 
-        // เช็คกรณีเป็น Group/Room (บังคับให้พิมพ์ bot/ หรือ ai/ นำหน้า)
         const sourceType = event.source.type
         const isGroupChat = sourceType === "group" || sourceType === "room"
         let shouldProcess = true
@@ -244,7 +261,6 @@ export async function POST(request: Request) {
         }
 
         if (shouldProcess && text.length > 0) {
-          // เช็ค Keyword ก่อนส่งให้ AI
           const keywordReplyMessages = handleKeywordMessage(text);
           if (keywordReplyMessages !== null) {
             await replyLineMessage(replyToken, keywordReplyMessages);
@@ -254,7 +270,6 @@ export async function POST(request: Request) {
           if (chatId) await startLoadingAnimation(chatId);
 
           try {
-            // ค้นหาข้อมูล (RAG) และส่งให้ Gemini
             const searchResults = await searchDocuments(text, 3)
             const context = searchResults.length > 0 
               ? searchResults.map((doc) => `- ${doc.content}`).join("\n") 
@@ -288,18 +303,16 @@ ${context}
       // ==========================================
       else if (event.type === "message" && event.message.type === "image" && userId) {
         
-        // 🆕 4. เช็คว่าผู้ใช้คนนี้มี Session OCR ที่ยังไม่หมดอายุใน Database หรือไม่
         const activeSession = await prisma.ocrSession.findFirst({
           where: {
             lineUserId: userId,
             status: "WAITING_FOR_IMAGE",
-            expiresAt: { gt: new Date() } // เวลาหมดอายุต้องมากกว่าเวลาปัจจุบัน
+            expiresAt: { gt: new Date() }
           },
           orderBy: { createdAt: "desc" }
         });
 
         if (activeSession) {
-          // 🆕 5. อัปเดตสถานะว่าทำสำเร็จแล้ว เพื่อป้องกันการส่งรูปรัวๆ
           await prisma.ocrSession.update({
             where: { id: activeSession.id },
             data: { status: "COMPLETED" }
@@ -307,7 +320,6 @@ ${context}
           
           await startLoadingAnimation(chatId);
           
-          // โหลดไฟล์ภาพจาก LINE 
           const imageBuffer = await getLineMessageContent(event.message.id);
           
           if (!imageBuffer) {
@@ -315,10 +327,8 @@ ${context}
             continue;
           }
 
-          // ส่งภาพให้ Typhoon OCR วิเคราะห์
           const extractedText = await processTyphoonOCR(imageBuffer);
 
-          // ตอบกลับข้อความที่สกัดได้
           await replyLineMessage(replyToken, [{ 
             type: "text", 
             text: `📝 ข้อความที่อ่านได้จากรูปภาพ:\n\n${extractedText}` 
