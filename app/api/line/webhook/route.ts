@@ -3,11 +3,7 @@ import { getGeminiResponse } from "@/lib/ai/gemini"
 import crypto from "crypto"
 import { searchDocuments } from "@/lib/ai/vector-search"
 import { SYSTEM_CORE_KNOWLEDGE } from "@/lib/ai/knonwledgeSystem"
-import { PrismaClient } from "@prisma/client"
-
-// สร้าง Instance ของ Prisma
-const prisma = new PrismaClient()
-
+import { prisma } from "@/lib/prisma"
 // เตรียม Environment Variables
 const LINE_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || ""
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || ""
