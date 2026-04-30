@@ -48,3 +48,41 @@ model ChatMessage {
   @@index([sessionId])
   @@map("chat_messages")
 }
+
+// ==========================================
+// 1. โมเดลเก็บข้อมูลผู้ใช้งาน (LINE User)
+// ==========================================
+model UserProfile {
+  id          String   @id @default(cuid())
+  lineUserId  String   @unique // รหัสผู้ใช้จาก LINE (ใช้อ้างอิงหลัก)
+  displayName String?          // ชื่อผู้ใช้ใน LINE
+  pictureUrl  String?          // รูปโปรไฟล์
+  
+  // Relations: เชื่อมไปยังประวัติแชทและเซสชัน OCR
+  ocrSessions OcrSession[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+// ==========================================
+// 2. โมเดลเก็บสถานะการรอรูปภาพ OCR
+// ==========================================
+model OcrSession {
+  id          String   @id @default(cuid())
+  
+  // เชื่อมกับ UserProfile ผ่าน lineUserId เพื่อความสะดวกเวลาดึงข้อมูลจาก Webhook
+  lineUserId  String
+  user        UserProfile @relation(fields: [lineUserId], references: [lineUserId], onDelete: Cascade)
+  
+  status      String   @default("WAITING_FOR_IMAGE") // สถานะเช่น: WAITING_FOR_IMAGE, COMPLETED, EXPIRED
+  expiresAt   DateTime // กำหนดเวลาหมดอายุ (เช่น ต้องส่งรูปภายใน 5 นาที)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([lineUserId, status]) // ทำ Index เพื่อให้ค้นหาสถานะที่กำลังรอรูปได้รวดเร็ว
+  @@map("ocr_sessions")
+}
