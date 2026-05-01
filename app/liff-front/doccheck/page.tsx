@@ -51,8 +51,7 @@ if (typeof window !== "undefined") {
 
 // 👑 กำหนดรายชื่อ LINE User ID สำหรับผู้ดูแลระบบ (Admin)
 const ADMIN_USER_IDS = [
-  "Uc4fb8efc60cb7d73e5c4e20ac1d2d013",
-  "ใส่_USER_ID_ของ_ADMIN_คนต่อไปที่นี่"
+  process.env.NEXT_PUBLIC_ADMIN_UID
 ];
 
 type TimelineEvent = {
