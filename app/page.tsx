@@ -173,15 +173,15 @@ export default function LandingPage() {
     <div className="relative min-h-screen overflow-hidden bg-slate-950 font-sans text-white">
       {/* เอฟเฟกต์ฉากหลัง */}
       <div 
-        className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/30 blur-[100px] pointer-events-none transition-transform duration-300 ease-out"
+        className="absolute top-[-10%] left-[-10%] w-125 h-125 rounded-full bg-blue-600/30 blur-[100px] pointer-events-none transition-transform duration-300 ease-out"
         style={{ transform: `translate(${mousePos.x * -2}px, ${mousePos.y * -2}px)` }}
       />
       <div 
-        className="absolute bottom-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-purple-600/20 blur-[120px] pointer-events-none transition-transform duration-300 ease-out"
+        className="absolute bottom-[-10%] right-[-5%] w-150 h-150 rounded-full bg-purple-600/20 blur-[120px] pointer-events-none transition-transform duration-300 ease-out"
         style={{ transform: `translate(${mousePos.x * 3}px, ${mousePos.y * 3}px)` }}
       />
       <div 
-        className="absolute top-[30%] left-[60%] w-[300px] h-[300px] rounded-full bg-indigo-500/20 blur-[80px] pointer-events-none transition-transform duration-300 ease-out"
+        className="absolute top-[30%] left-[60%] w-75 h-75 rounded-full bg-indigo-500/20 blur-[80px] pointer-events-none transition-transform duration-300 ease-out"
         style={{ transform: `translate(${mousePos.x * -1.5}px, ${mousePos.y * 1.5}px)` }}
       />
 
@@ -194,7 +194,7 @@ export default function LandingPage() {
           <div className="inline-block px-4 py-1.5 mb-6 text-sm font-medium tracking-wider text-blue-300 uppercase bg-blue-900/40 rounded-full border border-blue-500/30">
             Welcome to the future of education
           </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400">
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-linear-to-r from-blue-400 via-indigo-300 to-purple-400">
             โรงเรียนชุมชนวัดไทยงาม
           </h1>
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -217,10 +217,10 @@ export default function LandingPage() {
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         
         {isChatOpen && (
-          <div className="w-[340px] sm:w-[400px] h-[550px] max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col mb-4 overflow-hidden border border-gray-200 transform origin-bottom-right transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in">
+          <div className="w-85 sm:w-100 h-137.5 max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col mb-4 overflow-hidden border border-gray-200 transform origin-bottom-right transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in">
             
             {/* Header แชท */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center shadow-md z-10">
+            <div className="bg-linear-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center shadow-md z-10">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                   <span className="text-xl">🏫</span>
@@ -314,7 +314,7 @@ export default function LandingPage() {
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
           className={`relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-xl transition-transform duration-300 hover:scale-110 active:scale-95 ${
-            isChatOpen ? "bg-slate-800 rotate-90" : "bg-gradient-to-tr from-blue-600 to-purple-600 animate-bounce hover:animate-none"
+            isChatOpen ? "bg-slate-800 rotate-90" : "bg-linear-to-tr from-blue-600 to-purple-600 animate-bounce hover:animate-none"
           }`}
         >
           {isChatOpen ? (
