@@ -12,7 +12,7 @@ const anuphan = Anuphan({
   subsets: ["thai", "latin"],
 });
 
-export const viewport: Viewport = {
+export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
