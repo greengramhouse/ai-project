@@ -39,7 +39,7 @@ async function handleTextMessage(event: any, userId: string, chatId: string, rep
   const lowerText = text.toLowerCase();
 
   // 1. จัดการคำสั่ง "ocr"
-  if (lowerText === "ocr" && userId) {
+  if (lowerText === "ocr" && userId) { 
     // 🆕 แก้ปัญหาการใช้งานในกลุ่ม: ตรวจสอบและบันทึกโปรไฟล์ก่อนสร้าง Session เสมอ
     // ป้องกัน Error ฐานข้อมูลกรณีผู้ใช้ยังไม่ได้แอดบอทเป็นเพื่อน
     await ensureUserProfile(userId);

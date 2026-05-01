@@ -13,6 +13,22 @@ export async function processTyphoonOCR(imageBuffer: Buffer): Promise<string> {
     const base64Image = imageBuffer.toString('base64');
     const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
+    // 🛠️ กำหนดภาษาสำหรับอธิบายภาพ (สามารถเปลี่ยนเป็น English ได้ตามต้องการ)
+    const figureLanguage = "Thai"; 
+    
+    // 🛠️ อัปเดต Prompt ตามที่ต้องการ
+    const promptText = `Extract all text from the image.
+Instructions:
+- Only return the clean Markdown.
+- Do not include any explanation or extra text.
+- You must include all information on the page.
+Formatting Rules:
+- Tables: Render tables using <table>...</table> in clean HTML format.
+- Equations: Render equations using LaTeX syntax with inline ($...$) and block ($$...$$).
+- Images/Charts/Diagrams: Wrap visual areas in <figure> tags. Describe in ${figureLanguage}.
+- Page Numbers: Wrap page numbers in <page_number>...</page_number>.
+- Checkboxes: Use ☐ for unchecked and ☑️ for checked boxes.`;
+
     const response = await fetch(TYPHOON_BASE_URL, {
       method: "POST",
       headers: { 
@@ -25,8 +41,7 @@ export async function processTyphoonOCR(imageBuffer: Buffer): Promise<string> {
           {
             role: "user",
             content: [
-              // 🛠️ แก้ไข: บังคับให้ตอบเป็นภาษาไทย และห้ามหลุดข้อความคำสั่งภาษาอังกฤษเด็ดขาด
-              { type: "text", text: "กรุณาดึงข้อความจากรูปภาพนี้ออกมาให้ถูกต้อง ตอบกลับมาเป็นเนื้อหาที่อยู่ในภาพเท่านั้น ห้ามแสดงข้อความที่เป็นคำสั่ง (Instructions) ภาษาอังกฤษ หรือคำอธิบายแปลกปลอมเด็ดขาด ให้ตอบผลลัพธ์เป็นภาษาไทย" },
+              { type: "text", text: promptText },
               { type: "image_url", image_url: { url: dataUrl } }
             ]
           }
@@ -40,17 +55,18 @@ export async function processTyphoonOCR(imageBuffer: Buffer): Promise<string> {
     const data = await response.json();
     let extractedText = data.choices[0].message.content.trim(); 
 
-    // 🛠️ FIX: ดักจับและลบข้อความ Prompt Instructions (Prompt Leakage) ภาษาอังกฤษทิ้งทั้งหมดให้เด็ดขาด
+    // 🛠️ FIX: ดักจับและลบข้อความ Prompt Instructions เผื่อโมเดลคายคำสั่งกลับมา
     // 1. ตัดตั้งแต่คำว่า "Extract all text" ไปจนจบรูปแบบ checkbox
-    const leakPattern1 = /Extract all text from the image[\s\S]*?☑ for checked boxes\.?/gi;
+    const leakPattern1 = /Extract all text from the image[\s\S]*?☑️ for checked boxes\.?/gi;
+    // หมายเหตุ: ปรับอีโมจิใน Regex เล็กน้อยให้ตรงกับ Prompt (☑️)
     extractedText = extractedText.replace(leakPattern1, '').trim();
     
     // 2. ดักอีกชั้น เผื่อโมเดลคายคำสั่งส่วน Instructions: ออกมาแค่บางส่วน
     const leakPattern2 = /Instructions:[\s\S]*?(<\/figure>|- Checkboxes:[\s\S]*?boxes\.)/gi;
     extractedText = extractedText.replace(leakPattern2, '').trim();
 
-    // ลบเศษแท็กที่อาจหลงเหลือ
-    extractedText = extractedText.replace(/```markdown/gi, '').replace(/```/gi, '').trim();
+    // ลบเศษแท็ก Markdown ออกหากโมเดลใส่ครอบมาให้
+    extractedText = extractedText.replace(/^```markdown/gi, '').replace(/```$/gi, '').trim();
 
     if (!extractedText) {
       return "ดึงข้อความสำเร็จ แต่ไม่พบตัวอักษรในภาพค่ะ";
