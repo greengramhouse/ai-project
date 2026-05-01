@@ -5,7 +5,7 @@ import { SYSTEM_CORE_KNOWLEDGE } from "@/lib/ai/knonwledgeSystem"
 import { prisma } from "@/lib/prisma"
 import { replyLineMessage, startLoadingAnimation, verifySignature } from "@/lib/line-webhook/line"
 import { getLineMessageContent } from "@/lib/line-webhook/getFile"
-import { processTyphoonOCR } from "@/lib/line-webhook/typhoon"
+import { processTyphoonASR, processTyphoonOCR } from "@/lib/line-webhook/typhoon"
 import { ensureUserProfile } from "@/lib/line-webhook/action_profile"
 
 // ==========================================
@@ -150,6 +150,31 @@ async function handleImageMessage(event: any, userId: string, chatId: string, re
   }]);
 }
 
+async function handleAudioMessage(event: any, userId: string, chatId: string, replyToken: string) {
+  if (!userId) return;
+
+  // เริ่มแสดงแอนิเมชัน Loading แจ้งผู้ใช้ว่าบอทกำลังฟังอยู่
+  if (chatId) await startLoadingAnimation(chatId);
+
+  // 1. ดึงไฟล์เสียงจาก LINE (ใช้ฟังก์ชันเดียวกับดึงรูปภาพได้เลย)
+  const audioBuffer = await getLineMessageContent(event.message.id);
+  if (!audioBuffer) {
+    return replyLineMessage(replyToken, [{ 
+      type: "text", 
+      text: "ขออภัยค่ะ ไม่สามารถดาวน์โหลดไฟล์เสียงจากระบบ LINE ได้" 
+    }]);
+  }
+
+  // 2. ส่งให้ Typhoon ถอดเสียง
+  const transcribedText = await processTyphoonASR(audioBuffer);
+
+  // 3. ตอบกลับข้อความ
+  await replyLineMessage(replyToken, [{ 
+    type: "text", 
+    text: `🎤 ข้อความจากเสียงที่คุณส่งมา:\n\n"${transcribedText}"` 
+  }]);
+}
+
 // ==========================================
 // 🚀 MAIN EVENT ROUTER (กระจายงาน)
 // ==========================================
@@ -169,6 +194,8 @@ async function processLineEvent(event: any) {
       await handleTextMessage(event, userId, chatId, replyToken);
     } else if (event.message.type === "image") {
       await handleImageMessage(event, userId, chatId, replyToken);
+    }else if (event.message.type === "audio") { // 🆕 เพิ่มสำหรับ ASR
+      await handleAudioMessage(event, userId, chatId, replyToken);
     }
   }
 }
