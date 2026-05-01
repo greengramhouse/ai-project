@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link"; // 🆕 นำเข้า Link เพื่อใช้สำหรับเชื่อมหน้าต่าง ๆ
 
 // กำหนดโครงสร้างของข้อความแชท
 interface Message {
@@ -27,7 +28,7 @@ export default function LandingPage() {
   
   // Refs สำหรับเลื่อนจอและโฟกัสช่องพิมพ์
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null); // ✅ เพิ่ม Ref สำหรับช่อง Input
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
   // 2. State สำหรับเอฟเฟกต์เมาส์ขยับ (Parallax)
@@ -59,11 +60,9 @@ export default function LandingPage() {
     }
   }, [messages, isLoading, isChatOpen]);
 
-  // ✅ เพิ่ม useEffect สำหรับ Auto-Focus ช่องพิมพ์
+  // Auto-Focus ช่องพิมพ์
   useEffect(() => {
-    // ถ้าเปิดแชทอยู่ และ ไม่ได้กำลังโหลด (AI ตอบเสร็จแล้ว หรือ เพิ่งเปิดแชท)
     if (isChatOpen && !isLoading && inputRef.current) {
-      // ใช้ setTimeout เล็กน้อยเพื่อให้แน่ใจว่า DOM อัปเดตเอา attribute 'disabled' ออกไปแล้ว
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
@@ -165,12 +164,25 @@ export default function LandingPage() {
       );
     } finally {
       setIsLoading(false);
-      // เมื่อทำงานตรงนี้เสร็จ isLoading จะเป็น false ซึ่งจะไป trigger useEffect ด้านบนให้ Focus ช่องพิมพ์
     }
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 font-sans text-white">
+      
+      {/* 🆕 ปุ่มเข้าสู่ระบบ / ไปยังหน้า Portal (มุมขวาบน) */}
+      <div className="absolute top-6 right-6 md:top-8 md:right-10 z-50">
+        <Link 
+          href="/liff-front"
+          className="group flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/20 transition-all font-medium text-sm shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(255,255,255,0.15)] active:scale-95"
+        >
+          <span>เข้าสู่ระบบบุคลากร</span>
+          <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </Link>
+      </div>
+
       {/* เอฟเฟกต์ฉากหลัง */}
       <div 
         className="absolute top-[-10%] left-[-10%] w-125 h-125 rounded-full bg-blue-600/30 blur-[100px] pointer-events-none transition-transform duration-300 ease-out"
@@ -288,7 +300,7 @@ export default function LandingPage() {
             <div className="p-3 bg-white border-t">
               <form onSubmit={handleSubmit} className="flex items-center bg-gray-100 p-1 rounded-full border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <input
-                  ref={inputRef} // ✅ ผูก Ref เข้ากับช่อง input ตรงนี้
+                  ref={inputRef} 
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}

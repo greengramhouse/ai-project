@@ -20,7 +20,7 @@ export default function RegisterTeacherPage() {
 
     try {
       // เรียก API เพื่ออัปเดตข้อมูลลงฐานข้อมูล
-      const response = await fetch('/api/register', {
+      const response = await fetch('/api/line/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

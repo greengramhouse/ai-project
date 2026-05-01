@@ -6,11 +6,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { lineUserId, firstName, lastName } = body;
 
-    // อัปเดตชื่อ-นามสกุล โดยอ้างอิงจาก lineUserId
-    await prisma.userProfile.update({
-      where: { lineUserId: lineUserId },
-      data: { firstName, lastName }
-    });
+ await prisma.userProfile.upsert({
+  where: { lineUserId: lineUserId },
+  update: { 
+    firstName: firstName, 
+    lastName: lastName 
+  },
+  create: { 
+    lineUserId: lineUserId,
+    firstName: firstName,
+    lastName: lastName,
+    // (หากคุณมีฟิลด์บังคับอื่นๆ ใน DB ให้ใส่เพิ่มตรงนี้ด้วย)
+  }
+});
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
