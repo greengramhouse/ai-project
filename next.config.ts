@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // เพิ่มส่วนนี้เพื่ออนุญาตให้ ngrok เข้าถึงระบบนักพัฒนาได้
-  allowedDevOrigins: ["2855-171-5-174-151.ngrok-free.app"],
+  // allowedDevOrigins: ["68c9-171-5-174-151.ngrok-free.app"],
   images: {
     remotePatterns: [
       {

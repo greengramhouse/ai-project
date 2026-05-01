@@ -84,11 +84,13 @@ Formatting Rules:
   }
 }
 
-// นำเข้าเพื่อใช้แปลง Buffer เป็น File/Blob ในการแนบฟอร์ม
-import { Blob } from "buffer";
-
 export async function processTyphoonASR(audioBuffer: Buffer): Promise<string> {
   try {
+    console.log(
+      "เริ่มถอดเสียงด้วย Typhoon ASR...",
+      audioBuffer.length,
+      "bytes",
+    );
     const TYPHOON_API_KEY = process.env.TYPHOON_API_KEY || "";
     if (!TYPHOON_API_KEY) {
       return "ระบบยังไม่ได้ตั้งค่า TYPHOON_API_KEY ค่ะ";
@@ -98,19 +100,19 @@ export async function processTyphoonASR(audioBuffer: Buffer): Promise<string> {
       "https://api.opentyphoon.ai/v1/audio/transcriptions";
 
     // 🛠️ ตรวจสอบชื่อ Model ล่าสุดของ Typhoon ASR (ปกติจะใช้ชื่อ typhoon-audio หรืออิงตาม Docs)
-    const TYPHOON_MODEL = "typhoon-audio";
+    const TYPHOON_MODEL = "typhoon-asr-realtime";
 
     const formData = new FormData();
     // ไฟล์เสียงจาก LINE มักจะเป็น .m4a หรือ aac
     // 1. หุ้ม Buffer ด้วย Uint8Array ให้ตรงตามมาตรฐาน Web API
     const audioBlob = new Blob([new Uint8Array(audioBuffer)], {
-      type: "audio/m4a",
+      type: "audio/mp3",
     });
 
-    // 2. ใส่ as any ตอน append เพื่อหลบ Type clash ของ FormData
-    formData.append("file", audioBlob as any, "audio.m4a");
+    // 🛠️ แก้ไข: แกล้งเปลี่ยนชื่อไฟล์ตอนส่งเป็น audio.mp3
+    formData.append("file", audioBlob as any, "audio.mp3");
     formData.append("model", TYPHOON_MODEL);
-    // formData.append("language", "th"); // สามารถระบุภาษาได้ถ้าต้องการให้แม่นยำขึ้น
+    formData.append("language", "th"); // สามารถระบุภาษาได้ถ้าต้องการให้แม่นยำขึ้น
 
     const response = await fetch(TYPHOON_AUDIO_URL, {
       method: "POST",
