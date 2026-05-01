@@ -190,7 +190,7 @@ export default function LiffModernHomePage() {
           </div>
           <div className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x hide-scrollbar -mx-5 px-5 md:mx-0 md:px-0">
             {mockNews.map((news) => (
-              <div key={news.id} className="min-w-[240px] md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden hover:shadow-md transition-all cursor-pointer shrink-0">
+              <div key={news.id} className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden hover:shadow-md transition-all cursor-pointer shrink-0">
                 <div className={`absolute top-0 right-0 w-16 md:w-24 h-16 md:h-24 ${news.color} opacity-10 dark:opacity-20 rounded-bl-full`} />
                 <span className={`inline-block px-2.5 py-1 ${news.color} bg-opacity-10 dark:bg-opacity-20 ${news.color.replace('bg-', 'text-')} dark:text-opacity-90 text-[10px] md:text-xs font-bold rounded-lg mb-3 md:mb-4`}>
                   {news.tag}
@@ -238,7 +238,7 @@ export default function LiffModernHomePage() {
               <div 
                 key={img.id} 
                 onClick={() => setSelectedImage(img.url)}
-                className="min-w-[160px] md:min-w-[280px] lg:min-w-[320px] h-32 md:h-48 lg:h-56 bg-gray-200 dark:bg-gray-700 rounded-2xl relative overflow-hidden group snap-start cursor-pointer shadow-sm shrink-0"
+                className="min-w-40 md:min-w-70 lg:min-w-[320px] h-32 md:h-48 lg:h-56 bg-gray-200 dark:bg-gray-700 rounded-2xl relative overflow-hidden group snap-start cursor-pointer shadow-sm shrink-0"
               >
                 <Image 
                   src={img.url} 
@@ -247,7 +247,7 @@ export default function LiffModernHomePage() {
                   width={400}
                   height={300}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute bottom-2 md:bottom-4 left-3 md:left-4 text-white text-xs md:text-base font-bold drop-shadow-md">
                   {img.title}
                 </div>

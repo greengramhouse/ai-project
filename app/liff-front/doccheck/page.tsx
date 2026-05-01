@@ -8,19 +8,19 @@ import useSWR from "swr";
 
 // ⚠️ หมายเหตุ: สำหรับการแสดงผลพรีวิวใน Canvas นี้ ผมได้ทำการจำลอง useLiff ขึ้นมาเพื่อให้โค้ดคอมไพล์ผ่าน
 // ในโปรเจกต์ Next.js จริงของคุณ ให้ลบ mock ด้านล่างนี้ออก แล้วใช้คำสั่ง import ด้านล่างแทนนะครับ
-// import { useLiff } from "../layout";
+import { useLiff } from "../layout";
 
-const useLiff = () => {
-  const [profile, setProfile] = useState<any>(null);
-  const [theme, setTheme] = useState('light');
-  useEffect(() => {
-    // จำลองข้อมูลให้ตรงกับในฐานข้อมูลที่คุณส่งภาพมา
-    const mockProfile = { userId: "Uc4fb8efc60cb7d73e5c4e20ac1d2d013", displayName: "วรุณพร" };
-    setProfile(mockProfile);
-  }, []);
-  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  return { profile, theme, toggleTheme, isReady: true };
-};
+// const useLiff = () => {
+//   const [profile, setProfile] = useState<any>(null);
+//   const [theme, setTheme] = useState('light');
+//   useEffect(() => {
+//     // จำลองข้อมูลให้ตรงกับในฐานข้อมูลที่คุณส่งภาพมา
+//     const mockProfile = { userId: "Uc4fb8efc60cb7d73e5c4e20ac1d2d013", displayName: "วรุณพร" };
+//     setProfile(mockProfile);
+//   }, []);
+//   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+//   return { profile, theme, toggleTheme, isReady: true };
+// };
 
 // ==========================================
 // 🔧 ตั้งค่า Firebase
