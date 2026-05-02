@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -17,11 +17,14 @@ type NewsData = {
   updatedAt?: string;
 };
 
-// 📌 1. แยกการทำงานที่ใช้ useParams และดึงข้อมูลมาเป็น Component ย่อย
-function NewsContent() {
-  const params = useParams();
+// 📌 เปลี่ยนมารับค่า params ผ่าน Props แทนการใช้ useParams() เพื่อแก้ปัญหา Build Error
+export default function ShowNewsPage({ params }: { params: any }) {
+  // รองรับการทำงานข้ามเวอร์ชัน (Next.js 14 ส่งมาเป็น Object ส่วน Next.js 15 ส่งมาเป็น Promise)
+  // React.use() เป็น Hook ตัวเดียวที่อนุญาตให้เรียกใช้แบบมีเงื่อนไขได้
+  const resolvedParams = params instanceof Promise ? React.use(params) : params;
+  const id = resolvedParams?.id as string;
+  
   const router = useRouter();
-  const id = params?.id as string;
 
   const [news, setNews] = useState<NewsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,21 +198,5 @@ function NewsContent() {
         .dark .news-content strong { color: #f9fafb; }
       `}} />
     </div>
-  );
-}
-
-// 📌 2. ตัว Page หลัก ทำหน้าที่ครอบ Suspense ป้องกัน Build Error 
-export default function ShowNewsPage() {
-  return (
-    <Suspense 
-      fallback={
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 transition-colors">
-          <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">กำลังประมวลผล...</p>
-        </div>
-      }
-    >
-      <NewsContent />
-    </Suspense>
   );
 }
