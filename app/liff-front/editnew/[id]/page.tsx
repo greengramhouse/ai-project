@@ -6,12 +6,17 @@ import { useParams, useRouter } from "next/navigation";
 import "react-quill-new/dist/quill.snow.css";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { triggerNewsRevalidation } from "@/lib/news-action";
+import Swal from "sweetalert2";
 
 // ⚠️ ในโปรเจกต์จริง ให้ปลดคอมเมนต์บรรทัดล่างนี้ และลบ MOCK useLiff ทิ้ง
 // import { useLiff } from "../../../../liff-front/layout";
 
 // 🛠️ MOCK สำหรับหน้าจอพรีวิวใน Canvas (ลบทิ้งเมื่อนำไปใช้จริง)
-const useLiff = () => ({ isReady: true, profile: { userId: process.env.NEXT_PUBLIC_ADMIN_UID || "mock-admin-uid" } });
+const useLiff = () => ({
+  isReady: true,
+  profile: { userId: process.env.NEXT_PUBLIC_ADMIN_UID || "mock-admin-uid" },
+});
 
 // 🚀 นำเข้า ReactQuill แบบ Dynamic
 const ReactQuill = dynamic(() => import("react-quill-new"), {
@@ -64,12 +69,21 @@ export default function EditNewsForm() {
   // 🛡️ 1. ตรวจสอบสิทธิ์การเข้าถึง (Admin Only)
   useEffect(() => {
     if (isReady) {
-      const ADMIN_USER_IDS = [process.env.NEXT_PUBLIC_ADMIN_UID].filter(Boolean);
-      const isAdmin = profile?.userId && ADMIN_USER_IDS.includes(profile.userId);
+      const ADMIN_USER_IDS = [process.env.NEXT_PUBLIC_ADMIN_UID].filter(
+        Boolean,
+      );
+      const isAdmin =
+        profile?.userId && ADMIN_USER_IDS.includes(profile.userId);
 
       if (!isAdmin) {
-        alert("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
-        router.replace("/liff-front");
+        Swal.fire({
+          icon: "error",
+          title: "การเข้าถึงถูกปฏิเสธ",
+          text: "คุณไม่มีสิทธิ์เข้าถึงหน้านี้",
+          confirmButtonColor: "#06C755",
+        }).then(() => {
+          router.replace("/liff-front");
+        });
       } else {
         setIsCheckingAuth(false);
       }
@@ -129,14 +143,16 @@ export default function EditNewsForm() {
   const handleSubmit: SubmitEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
 
-    const isContentEmpty = content.replace(/<[^>]*>?/gm, "").trim().length === 0;
+    const isContentEmpty =
+      content.replace(/<[^>]*>?/gm, "").trim().length === 0;
 
     if (!title || !date || isContentEmpty) {
-      setMessage({
-        type: "error",
+      Swal.fire({
+        icon: "warning",
+        title: "ข้อมูลไม่ครบถ้วน",
         text: "กรุณากรอกข้อมูลให้ครบถ้วน โดยเฉพาะเนื้อหาข่าว",
+        confirmButtonColor: "#06C755",
       });
-      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
@@ -152,26 +168,38 @@ export default function EditNewsForm() {
       color,
       content: content,
       images: validImageUrls,
-      updatedAt: serverTimestamp(), // บันทึกเวลาที่แก้ไขล่าสุด
+      updatedAt: new Date().toISOString(),
     };
 
     try {
       const docRef = doc(db, "news", newsId);
       await updateDoc(docRef, updatedNewsData); // ใช้ updateDoc แทน addDoc
-
-      setMessage({
-        type: "success",
-        text: "🎉 บันทึกการแก้ไขสำเร็จแล้ว!",
+      await triggerNewsRevalidation();
+      // 📌 ใช้ SweetAlert แจ้งเตือนเมื่อบันทึกสำเร็จ
+      Swal.fire({
+        icon: "success",
+        title: "บันทึกสำเร็จ!",
+        text: "ข่าวประชาสัมพันธ์ของคุณถูกบันทึกเรียบร้อยแล้ว",
+        showConfirmButton: false,
+        timer: 2000,
       });
+
+      setTitle("");
+      setDate("");
+      setImageUrls([]);
+      setContent(""); 
 
       // หน่วงเวลาเล็กน้อยแล้วพากลับไปหน้าแรก
       setTimeout(() => {
         router.push("/liff-front");
       }, 1500);
-
     } catch (error) {
       console.error("Update error:", error);
-      setMessage({ type: "error", text: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล" });
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -197,7 +225,9 @@ export default function EditNewsForm() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
         <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
         <p className="text-gray-500 dark:text-gray-400 font-medium">
-          {!isReady || isCheckingAuth ? "กำลังตรวจสอบสิทธิ์..." : "กำลังโหลดข้อมูลข่าวเดิม..."}
+          {!isReady || isCheckingAuth
+            ? "กำลังตรวจสอบสิทธิ์..."
+            : "กำลังโหลดข้อมูลข่าวเดิม..."}
         </p>
       </div>
     );
@@ -207,12 +237,22 @@ export default function EditNewsForm() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-10 px-5 transition-colors">
       <div className="max-w-3xl mx-auto">
         <div className="mb-8 flex items-center gap-4">
-          <button 
+          <button
             onClick={handleCancel}
             className="w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-white transition-colors shadow-sm"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <div>
@@ -220,7 +260,10 @@ export default function EditNewsForm() {
               แก้ไขข่าวประชาสัมพันธ์ ✏️
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-              กำลังแก้ไขข่าวรหัส: <span className="font-mono text-[10px] bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{newsId.substring(0, 8)}...</span>
+              กำลังแก้ไขข่าวรหัส:{" "}
+              <span className="font-mono text-[10px] bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
+                {newsId.substring(0, 8)}...
+              </span>
             </p>
           </div>
         </div>

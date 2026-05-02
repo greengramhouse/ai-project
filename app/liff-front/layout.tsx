@@ -122,7 +122,7 @@ export default function LiffLayout({
       <div className="liff-container min-h-screen ove bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 transition-colors duration-300">
         {/* พื้นที่สำหรับแสดงเนื้อหาแต่ละหน้า (Page Content) */}
         {/* เพิ่ม pb-20 เพื่อไม่ให้แถบเมนูด้านล่างไปบังเนื้อหาส่วนท้าย */}
-        <div className="pb-20">{children}</div>
+        <div className="pb-4">{children}</div>
 
         {/* ย้าย Bottom Navigation มาไว้ตรงนี้ ให้แสดงตลอดทุกหน้า (เมื่อ Login แล้วเท่านั้น) */}
         {profile && (

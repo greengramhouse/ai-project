@@ -1,44 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
-import useSWR from "swr"; 
-
-import { useLiff } from "../liff-front/layout";
-
-// ⚠️ หมายเหตุ: สำหรับการแสดงผลพรีวิวใน Canvas นี้ ผมได้ทำการจำลอง useLiff ขึ้นมาเพื่อให้โค้ดคอมไพล์ผ่าน
-// ในโปรเจกต์ Next.js จริงของคุณ ให้ลบ mock ด้านล่างนี้ออก แล้วใช้คำสั่ง import ด้านล่างแทนนะครับ
-
-// const useLiff = () => {
-//   return { isReady: true };
-// };
-
-// ==========================================
-// 🔧 ตั้งค่า Firebase
-// ==========================================
-let app: any, db: any, appId = 'calendar-app';
-
-if (typeof window !== "undefined") {
-  try {
-    const firebaseConfig = typeof (window as any).__firebase_config !== 'undefined' 
-      ? JSON.parse((window as any).__firebase_config) 
-      : {
-          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        };
-
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    db = getFirestore(app);
-    
-    if (typeof (window as any).__app_id !== 'undefined' && (window as any).__app_id) {
-      appId = (window as any).__app_id;
-    }
-  } catch (error) {
-    console.error("Firebase init error:", error);
-  }
-}
+import { useState } from "react";
 
 export type EventData = {
   id: string;
@@ -87,76 +49,24 @@ const getDayColorClasses = (dayIndex: number) => {
   }
 };
 
-// 🆕 Component หลักที่สามารถเรียกใช้ซ้ำได้
-export default function EventList({ compactMode = false }: { compactMode?: boolean }) {
-  const { isReady } = useLiff();
+export default function EventListCach({ 
+  events, 
+  compactMode = false 
+}: { 
+  events: any[];
+  compactMode?: boolean;
+}) {
   const [showAllEvents, setShowAllEvents] = useState(false);
-  
-  const fetchEvents = async (): Promise<EventData[]> => {
-    if (!db) return [];
-    const eventsRef = collection(db, 'artifacts', appId, 'public', 'data', 'events');
-    const snapshot = await getDocs(eventsRef);
-    
-    let fetchedEvents = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EventData[]; 
-    
-    // เรียงตามวันที่จัดกิจกรรม (ล่าสุดขึ้นก่อน)
-    fetchedEvents.sort((a, b) => {
-      const dateA = new Date(a.start || a.createdAt || 0).getTime();
-      const dateB = new Date(b.start || b.createdAt || 0).getTime();
-      return dateB - dateA; 
-    });
 
-    return fetchedEvents;
-  };
-
-  const { 
-    data: events = [], 
-    error, 
-    isLoading 
-  } = useSWR<EventData[]>(
-    isReady ? 'public-events' : null,
-    fetchEvents,
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 10000,
-      keepPreviousData: true, 
-    }
-  );
-
-  if (error) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-10 text-center shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="text-rose-500 font-bold mb-2">เกิดข้อผิดพลาด</div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">ไม่สามารถดึงข้อมูลกิจกรรมได้</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-16 flex flex-col items-center justify-center shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="w-10 h-10 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
-        <p className="text-sm text-gray-400 dark:text-gray-500 font-medium tracking-wide">กำลังโหลดกิจกรรม...</p>
-      </div>
-    );
-  }
-
-  if (events.length === 0) {
+  if (!events || events.length === 0) {
     return (
       <div className="text-center py-16 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="w-20 h-20 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-inner transition-colors">📅</div>
         <p className="font-bold text-gray-500 dark:text-gray-400">ยังไม่มีกิจกรรม</p>
-        <p className="text-xs px-10 mt-2 text-gray-300 dark:text-gray-500 leading-relaxed">
-          ในขณะนี้ยังไม่มีกำหนดการใดๆ ในระบบ
-        </p>
       </div>
     );
   }
 
-  // จำกัดแสดงผล 5 รายการ (หรือทั้งหมดตาม State / Props)
   const displayedEvents = (compactMode || !showAllEvents) ? events.slice(0, 5) : events;
 
   return (

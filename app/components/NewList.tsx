@@ -1,10 +1,11 @@
 "use client";
 
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-import useSWR from "swr";
+import { useState, useEffect } from "react";
+import { doc, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { useLiff } from "../liff-front/layout";
+import { triggerNewsRevalidation } from "@/lib/news-action";
 
 export type NewsData = {
   id: string;
@@ -17,39 +18,21 @@ export type NewsData = {
   createdAt?: string;
 };
 
-export default function NewsList() {
-  const { isReady, profile } = useLiff();
+// 📌 รับข้อมูล initialNews ที่ Server ดึงมาให้เป็น Props
+export default function NewsList({ initialNews = [] }: { initialNews: NewsData[] }) {
+  const { profile } = useLiff();
   const router = useRouter();
+  
+  // สร้าง State มารับข้อมูล เพื่อให้เวลาลบข่าว หน้าจอจะได้อัปเดตหายไปทันที
+  const [newsList, setNewsList] = useState<NewsData[]>(initialNews);
+
+  // อัปเดตข้อมูลเมื่อ Server ส่งข้อมูลใหม่มาให้
+  useEffect(() => {
+    setNewsList(initialNews);
+  }, [initialNews]);
 
   const ADMIN_USER_IDS = [process.env.NEXT_PUBLIC_ADMIN_UID].filter(Boolean);
   const isAdmin = profile?.userId && ADMIN_USER_IDS.includes(profile.userId);
-
-  const fetchNews = async (): Promise<NewsData[]> => {
-    const newsRef = collection(db, "news");
-    const snapshot = await getDocs(newsRef);
-
-    let fetchedNews = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as NewsData[];
-
-    fetchedNews.sort(
-      (a, b) =>
-        new Date(b.createdAt || 0).getTime() -
-        new Date(a.createdAt || 0).getTime(),
-    );
-
-    return fetchedNews;
-  };
-
-  const {
-    data: newsList = [],
-    error,
-    isLoading,
-    mutate: mutateNews,
-  } = useSWR<NewsData[]>(isReady ? "public-news" : null, fetchNews, {
-    revalidateOnFocus: false,
-  });
 
   const handleDelete = async (
     e: React.MouseEvent,
@@ -61,44 +44,25 @@ export default function NewsList() {
 
     if (!db) {
       alert(`ลบข่าวสาร "${title}" สำเร็จ (โหมดพรีวิว)`);
+      setNewsList(prev => prev.filter(news => news.id !== id));
       return;
     }
 
     try {
+      // 1. ลบข้อมูลจากฐานข้อมูล Firebase
       await deleteDoc(doc(db, "news", id));
-      mutateNews();
+      
+      // 2. อัปเดตหน้าจอโดยลบข่าวนี้ออกจาก State ทันที (ไม่ต้องรอรีเฟรช)
+      setNewsList(prev => prev.filter(news => news.id !== id));
+      await triggerNewsRevalidation();
+      
+      // 💡 หมายเหตุ: หากต้องการให้ Cache บน Server ถูกล้างด้วย 
+      // ในอนาคตควรใช้ Server Action ในการลบแล้วเรียก revalidateTag('news')
     } catch (error) {
       console.error("Error deleting news:", error);
       alert("เกิดข้อผิดพลาดในการลบข่าวสาร");
     }
   };
-
-  if (error) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 text-center shadow-sm border border-gray-100 dark:border-gray-700">
-        <p className="text-sm text-red-500 font-medium">
-          ไม่สามารถโหลดข่าวสารได้
-        </p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x hide-scrollbar -mx-5 px-5 md:mx-0 md:px-0">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm shrink-0 h-32 animate-pulse"
-          >
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   if (newsList.length === 0) {
     return (
@@ -147,7 +111,6 @@ export default function NewsList() {
               📅 {news.date || "-"}
             </p>
 
-            {/* 👇 ข้อความบอกว่าคลิกได้ */}
             <p className="text-[11px] text-gray-400 mt-2 group-hover:text-blue-500 transition">
               คลิกเพื่ออ่านเพิ่มเติม →
             </p>
