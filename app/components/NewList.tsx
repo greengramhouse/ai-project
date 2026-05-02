@@ -7,8 +7,8 @@ import { db } from "@/lib/firebase";
 // ⚠️ ในโปรเจกต์จริง ใช้ useLiff ของคุณเอง
 // import { useLiff } from "../liff-front/layout";
 import { triggerNewsRevalidation } from "@/lib/news-action";
-// นำเข้า Component EditNewsForm ที่เราเพิ่งสร้าง
 import EditNewsForm from "../liff-front/editnews/page";
+
 // MOCK สำหรับ Canvas (ลบทิ้งเมื่อใช้จริง)
 const useLiff = () => ({
   isReady: true,
