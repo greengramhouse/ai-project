@@ -7,7 +7,20 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { triggerNewsRevalidation } from "@/lib/news-action";
 import Swal from "sweetalert2";
-import { NewsData } from "@/app/components/NewList";
+
+// ✅ สมมติว่า NewsData ถูก import มาจาก NewsList ถ้ามีการแยก Type
+// import { NewsData } from "@/app/components/NewList";
+type NewsData = {
+  id: string;
+  title: string;
+  date: string;
+  tag: string;
+  color: string;
+  content?: string;
+  images?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 // 🚀 นำเข้า ReactQuill แบบ Dynamic
 const ReactQuill = dynamic(() => import("react-quill-new"), {
@@ -44,7 +57,6 @@ export default function EditNewsForm({
   onCancel,
   onSuccess,
 }: EditNewsFormProps) {
-  // นำ Prop มาตั้งค่าเป็น State เริ่มต้น
   const [title, setTitle] = useState(initialData.title || "");
   const [date, setDate] = useState(initialData.date || "");
   const [tag, setTag] = useState(initialData.tag || TAG_OPTIONS[0]);
@@ -113,7 +125,6 @@ export default function EditNewsForm({
         timer: 1500,
       });
 
-      // แจ้งให้ Component แม่ทราบ พร้อมส่งข้อมูลอัปเดตกลับไป
       onSuccess({ ...initialData, ...(updatedNewsData as NewsData) });
     } catch (error) {
       console.error("Update error:", error);
@@ -138,7 +149,8 @@ export default function EditNewsForm({
   };
 
   return (
-    <div className="-mx-5 px-5 md:mx-0 md:px-0">
+    // ✅ เอา margin แบบติดขอบออกไป เพื่อให้มันพอดีกับ Modal Container
+    <div className="w-full">
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={onCancel}
@@ -167,7 +179,6 @@ export default function EditNewsForm({
         className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden"
       >
         <div className="p-6 md:p-8 space-y-8">
-          {/* ข้อมูลพื้นฐาน */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
@@ -240,7 +251,6 @@ export default function EditNewsForm({
 
           <hr className="border-gray-100 dark:border-gray-700" />
 
-          {/* ส่วนเพิ่มรูปภาพ */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -307,7 +317,6 @@ export default function EditNewsForm({
 
           <hr className="border-gray-100 dark:border-gray-700" />
 
-          {/* ส่วนเนื้อหาข่าว */}
           <div>
             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
               📝 เนื้อหาข่าว
@@ -340,7 +349,6 @@ export default function EditNewsForm({
           </div>
         </div>
 
-        {/* ปุ่ม Submit & Cancel */}
         <div className="bg-gray-50 dark:bg-gray-900/50 p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-4">
           <button
             type="button"
