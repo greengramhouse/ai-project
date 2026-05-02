@@ -16,9 +16,9 @@ import {
   User,
 } from "firebase/auth";
 
-import NewsList from "../components/NewList";
 import Header from "../components/Header";
 import EventListCach from "../components/EventListCach";
+import NewsList from "../components/NewList";
 
 let app: any,
   auth: any,
