@@ -105,7 +105,7 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
       {/* Modal สำหรับขยายรูปภาพ */}
       {selectedImage && (
         <div 
-          className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" 
+          className="fixed inset-0 z-200 bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" 
           onClick={() => setSelectedImage(null)}
         >
           <button 
@@ -116,7 +116,7 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <div className="relative w-full max-w-5xl h-[85vh] z-[200]" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-5xl h-[85vh] z-200" onClick={(e) => e.stopPropagation()}>
             <img 
               src={selectedImage} 
               alt="ภาพขยาย" 
