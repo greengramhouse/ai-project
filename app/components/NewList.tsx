@@ -7,7 +7,9 @@ import { triggerNewsRevalidation } from "@/lib/news-action";
 import EditNewsForm from "../liff-front/editnews/page";
 import { NewsData } from "../liff-front/newlist/page";
 
-// Import Component ฟอร์มแก้ไข (แก้ Path ตามโปรเจกต์ของคุณ)
+// ✅ นำเข้า ShowNews จากไฟล์แยก (แก้ไข Path ให้ตรงกับที่คุณเก็บไฟล์ ShowNews)
+import ShowNews from "./ShowNews"; 
+
 /** * Mock Swal สำหรับหน้า Preview / ถ้าใช้จริงสามารถ Import sweetalert2 ได้เลย
  */
 const SwalMock = {
@@ -19,18 +21,6 @@ const SwalMock = {
     window.alert(`${options.title}\n${options.text || ""}`);
     return { isConfirmed: true };
   }
-};
-
-// --- ShowNews Component (อ่านข่าว) ซ่อนรายละเอียดไว้ที่นี่ ---
-const ShowNews = ({ news, onClose }: { news: NewsData; onClose: () => void }) => {
-  // ใส่โค้ดเดิมของ ShowNews ของคุณตรงนี้
-  return (
-    <div className="bg-white p-10 rounded-xl text-black">
-      <button onClick={onClose} className="mb-4">⬅ กลับ</button>
-      <h1 className="text-2xl font-bold">{news.title}</h1>
-      <div dangerouslySetInnerHTML={{ __html: news.content || "" }} />
-    </div>
-  );
 };
 
 // --- Main NewsList Component ---
@@ -69,7 +59,7 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   };
 
   // ------------------------------------
-  // Render Modal: อ่านข่าว
+  // Render Modal: อ่านข่าว (เรียกใช้จาก Component แยก)
   // ------------------------------------
   if (viewingNews) {
     return (
