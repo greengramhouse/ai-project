@@ -7,21 +7,11 @@ import { triggerNewsRevalidation } from "@/lib/news-action";
 import EditNewsForm from "../liff-front/editnews/page";
 import { NewsData } from "../liff-front/newlist/page";
 
-// ✅ นำเข้า ShowNews จากไฟล์แยก (แก้ไข Path ให้ตรงกับที่คุณเก็บไฟล์ ShowNews)
+// ✅ นำเข้า ShowNews จากไฟล์แยก
 import ShowNews from "./ShowNews"; 
 
-/** * Mock Swal สำหรับหน้า Preview / ถ้าใช้จริงสามารถ Import sweetalert2 ได้เลย
- */
-const SwalMock = {
-  fire: async (options: any) => {
-    if (options.showCancelButton) {
-      const confirmed = window.confirm(`${options.title}\n\n${options.text || ""}`);
-      return { isConfirmed: confirmed };
-    }
-    window.alert(`${options.title}\n${options.text || ""}`);
-    return { isConfirmed: true };
-  }
-};
+// ✅ นำเข้า SweetAlert2 ของจริง
+import Swal from "sweetalert2";
 
 // --- Main NewsList Component ---
 export default function NewsList({ initialNews = [] }: { initialNews: NewsData[] }) {
@@ -38,11 +28,19 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   }, [initialNews]);
 
   const handleDelete = async (e: React.MouseEvent, news: NewsData) => {
-    e.stopPropagation();
-    const result = await SwalMock.fire({
+    e.stopPropagation(); // ป้องกันไม่ให้คลิกทะลุไปเปิดอ่านข่าว
+    
+    // ✅ เรียกใช้ SweetAlert2 ของจริง
+    const result = await Swal.fire({
       title: "ยืนยันการลบ?",
-      text: `คุณต้องการลบข่าว "${news.title}" ใช่หรือไม่?`,
+      text: `คุณต้องการลบข่าว "${news.title}" ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`,
+      icon: "warning",
       showCancelButton: true,
+      confirmButtonColor: "#ef4444", // สีแดง (ลบ)
+      cancelButtonColor: "#6b7280", // สีเทา (ยกเลิก)
+      confirmButtonText: "ใช่, ลบเลย",
+      cancelButtonText: "ยกเลิก",
+      reverseButtons: true // สลับปุ่มยกเลิกไว้ซ้าย ลบไว้ขวา (UX ที่ดีขึ้น)
     });
 
     if (result.isConfirmed) {
@@ -52,8 +50,22 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
           await triggerNewsRevalidation();
         }
         setNewsList(prev => prev.filter(n => n.id !== news.id));
+        
+        // แจ้งเตือนเมื่อลบสำเร็จ
+        Swal.fire({
+          icon: "success",
+          title: "ลบสำเร็จ!",
+          text: "ลบข่าวประชาสัมพันธ์เรียบร้อยแล้ว",
+          showConfirmButton: false,
+          timer: 1500
+        });
       } catch (error) {
         console.error(error);
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถลบข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+        });
       }
     }
   };
@@ -63,7 +75,8 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   // ------------------------------------
   if (viewingNews) {
     return (
-      <div className="fixed inset-0 z-100 bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm overflow-y-auto">
+      // แก้ไข z-100 เป็น z-[100] เพื่อให้ Tailwind ทำงานได้อย่างถูกต้อง
+      <div className="fixed inset-0 z-[100] bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm overflow-y-auto">
         <div className="max-w-4xl mx-auto py-10 px-5">
           <ShowNews news={viewingNews} onClose={() => setViewingNews(null)} />
         </div>
@@ -76,7 +89,8 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   // ------------------------------------
   if (editingNews) {
     return (
-      <div className="fixed inset-0 z-100 bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm overflow-y-auto">
+      // แก้ไข z-100 เป็น z-[100]
+      <div className="fixed inset-0 z-[100] bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm overflow-y-auto">
         <div className="max-w-3xl mx-auto py-10 px-5">
           <EditNewsForm 
             initialData={editingNews} 
