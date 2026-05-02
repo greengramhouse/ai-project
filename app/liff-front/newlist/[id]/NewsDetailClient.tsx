@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { doc, getDoc } from "firebase/firestore";
-
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase"; 
 import { useLiff } from "../../layout";
-
-
 
 // โครงสร้างข้อมูลข่าว
 type NewsData = {
@@ -21,7 +18,10 @@ type NewsData = {
   createdAt?: string;
 };
 
-export default function NewsDetailPage() {
+// ------------------------------------------------------------------
+// 1. แยกส่วนการทำงานหลักออกมาเป็น Component ลูก
+// ------------------------------------------------------------------
+function NewsDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { theme, toggleTheme } = useLiff();
@@ -32,7 +32,7 @@ export default function NewsDetailPage() {
 
   useEffect(() => {
     const fetchNewsDetail = async () => {
-      if (!params.id) return;
+      if (!params?.id) return;
       
       // 🚀 โลจิกดึงข้อมูลจริงจาก Firebase
       try {
@@ -53,13 +53,13 @@ export default function NewsDetailPage() {
     };
 
     fetchNewsDetail();
-  }, [params.id]);
+  }, [params?.id]);
 
   const handleGoBack = () => {
     router.back();
   };
 
-  // 1. สถานะกำลังโหลด
+  // 1. สถานะกำลังโหลด (แสดงตอนกำลังดึงข้อมูลจาก Firebase)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
@@ -87,13 +87,12 @@ export default function NewsDetailPage() {
   }
 
   const colorClass = news.color || "bg-blue-500";
-  const textColorClass = colorClass.replace('bg-', 'text-');
 
   // 3. แสดงผลข่าวแบบเต็ม (Detail Page)
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'} pb-24 max-w-md mx-auto shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300`}>
       
-      {/* App Header (แบบโปร่งแสง ซ้อนทับเนื้อหาเล็กน้อย) */}
+      {/* App Header */}
       <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md px-5 pt-10 pb-4 sticky top-0 z-40 shadow-sm flex items-center justify-between transition-colors">
         <button 
           onClick={handleGoBack}
@@ -172,7 +171,7 @@ export default function NewsDetailPage() {
         </article>
       </main>
 
-      {/* สไตล์สำหรับจัดการ HTML ที่ได้มาจาก React-Quill (Tailwind Reset แก้อาการอักษรเท่ากันหมด) */}
+      {/* สไตล์สำหรับจัดการ HTML ที่ได้มาจาก React-Quill */}
       <style dangerouslySetInnerHTML={{__html: `
         .quill-content h1 { font-size: 1.75rem; font-weight: 800; margin-top: 1.5rem; margin-bottom: 1rem; color: inherit; line-height: 1.3; }
         .quill-content h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: inherit; line-height: 1.3; }
@@ -191,5 +190,21 @@ export default function NewsDetailPage() {
       `}} />
 
     </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// 2. ครอบ Component หลักด้วย <Suspense> เพื่อแก้ปัญหา Vercel Build Error
+// ------------------------------------------------------------------
+export default function NewsDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
+        <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-500 dark:text-gray-400 font-medium">กำลังเตรียมหน้าข่าว...</p>
+      </div>
+    }>
+      <NewsDetailContent />
+    </Suspense>
   );
 }
