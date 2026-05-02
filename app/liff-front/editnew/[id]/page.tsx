@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, SubmitEventHandler } from "react";
+import { useState, useEffect, SubmitEventHandler, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import "react-quill-new/dist/quill.snow.css";
@@ -43,11 +43,14 @@ const COLOR_OPTIONS = [
   { name: "สีเขียว (Emerald)", class: "bg-emerald-500" },
 ];
 
-export default function EditNewsForm() {
+// ------------------------------------------------------------------
+// 1. เปลี่ยนชื่อฟังก์ชันเดิมเป็น Content (ส่วนการทำงานหลัก)
+// ------------------------------------------------------------------
+function EditNewsFormContent() {
   const params = useParams();
   const router = useRouter();
   const { isReady, profile } = useLiff();
-  const newsId = params.id as string;
+  const newsId = params?.id as string;
 
   // States สำหรับข้อมูลฟอร์ม
   const [title, setTitle] = useState("");
@@ -92,7 +95,6 @@ export default function EditNewsForm() {
 
   // 🔄 2. ดึงข้อมูลข่าวเดิมมาแสดงในฟอร์ม
   useEffect(() => {
-    // ต้องรอให้เช็คสิทธิ์เสร็จก่อนถึงจะดึงข้อมูล
     if (isCheckingAuth) return;
 
     const fetchExistingNews = async () => {
@@ -173,9 +175,9 @@ export default function EditNewsForm() {
 
     try {
       const docRef = doc(db, "news", newsId);
-      await updateDoc(docRef, updatedNewsData); // ใช้ updateDoc แทน addDoc
+      await updateDoc(docRef, updatedNewsData);
       await triggerNewsRevalidation();
-      // 📌 ใช้ SweetAlert แจ้งเตือนเมื่อบันทึกสำเร็จ
+      
       Swal.fire({
         icon: "success",
         title: "บันทึกสำเร็จ!",
@@ -189,7 +191,6 @@ export default function EditNewsForm() {
       setImageUrls([]);
       setContent(""); 
 
-      // หน่วงเวลาเล็กน้อยแล้วพากลับไปหน้าแรก
       setTimeout(() => {
         router.push("/liff-front");
       }, 1500);
@@ -214,7 +215,7 @@ export default function EditNewsForm() {
       ["bold", "italic", "underline"],
       [{ header: 2 }, { header: 3 }],
       [{ list: "bullet" }, { list: "ordered" }],
-      ["link"], // 🆕 เพิ่มปุ่มแทรกลิงก์
+      ["link"],
       ["clean"],
     ],
   };
@@ -247,12 +248,7 @@ export default function EditNewsForm() {
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div>
@@ -262,7 +258,7 @@ export default function EditNewsForm() {
             <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
               กำลังแก้ไขข่าวรหัส:{" "}
               <span className="font-mono text-[10px] bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                {newsId.substring(0, 8)}...
+                {newsId?.substring(0, 8)}...
               </span>
             </p>
           </div>
@@ -344,11 +340,13 @@ export default function EditNewsForm() {
                       key={c.class}
                       type="button"
                       onClick={() => setColor(c.class)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${color === c.class ? "border-gray-800 dark:border-white shadow-md" : "border-transparent bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700"}`}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${
+                        color === c.class
+                          ? "border-gray-800 dark:border-white shadow-md"
+                          : "border-transparent bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
                     >
-                      <span
-                        className={`w-4 h-4 rounded-full ${c.class}`}
-                      ></span>
+                      <span className={`w-4 h-4 rounded-full ${c.class}`}></span>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {c.name.split(" ")[0]}
                       </span>
@@ -377,18 +375,8 @@ export default function EditNewsForm() {
                   onClick={addImageUrlInput}
                   className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-2"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   เพิ่มรูปภาพ
                 </button>
@@ -403,38 +391,22 @@ export default function EditNewsForm() {
               ) : (
                 <div className="space-y-3">
                   {imageUrls.map((url, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 animate-in fade-in slide-in-from-top-2"
-                    >
+                    <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                       <div className="flex-1 relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                            />
+                          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                           </svg>
                         </div>
                         <input
                           type="url"
                           value={url}
-                          onChange={(e) =>
-                            handleImageUrlChange(index, e.target.value)
-                          }
+                          onChange={(e) => handleImageUrlChange(index, e.target.value)}
                           placeholder="https://example.com/image.jpg"
                           className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/50 focus:border-transparent outline-none transition-all dark:text-white text-sm"
                         />
                       </div>
 
-                      {/* รูปภาพ Preview ขนาดเล็ก */}
                       {url.trim() && (
                         <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shrink-0 hidden sm:block">
                           <img
@@ -455,18 +427,8 @@ export default function EditNewsForm() {
                         className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
                         title="ลบรูปภาพนี้"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
@@ -533,18 +495,8 @@ export default function EditNewsForm() {
                 </>
               ) : (
                 <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                    />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                   </svg>
                   บันทึกการแก้ไข
                 </>
@@ -554,5 +506,25 @@ export default function EditNewsForm() {
         </form>
       </div>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// 2. สร้าง Default Export ตัวใหม่ที่ครอบ Suspense ตามที่ Next.js ต้องการ
+// ------------------------------------------------------------------
+export default function EditNewsForm() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
+          <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-500 dark:text-gray-400 font-medium">
+            กำลังเตรียมหน้าแก้ไขข้อมูล...
+          </p>
+        </div>
+      }
+    >
+      <EditNewsFormContent />
+    </Suspense>
   );
 }
