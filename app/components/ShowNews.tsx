@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type NewsData = {
+type NewsData = {
   id: string;
   title: string;
   date: string;
@@ -23,8 +23,8 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   return (
-    <div className="w-full">
-      {/* Header Navigation */}
+    <div className="w-full animate-in fade-in zoom-in-95 duration-300">
+      {/* ส่วนหัวสำหรับปิดหน้าจอ */}
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={onClose}
@@ -42,9 +42,9 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
         </div>
       </div>
 
-      {/* Article Container */}
+      {/* คอนเทนเนอร์เนื้อหาข่าว */}
       <article className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-        {/* Article Header */}
+        {/* ส่วนหัวข่าว (Header) */}
         <div className="p-6 md:p-10 border-b border-gray-100 dark:border-gray-700 relative overflow-hidden">
           <div
             className={`absolute top-0 right-0 w-32 h-32 md:w-48 md:h-48 ${news.color || "bg-blue-500"} opacity-10 dark:opacity-20 rounded-bl-full`}
@@ -70,9 +70,9 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
           </div>
         </div>
 
-        {/* Article Body */}
+        {/* ส่วนเนื้อหา (Body) */}
         <div className="p-6 md:p-10">
-          {/* Gallery Section */}
+          {/* ส่วนแสดงรูปภาพ Gallery */}
           {news.images && news.images.length > 0 && (
             <div className="mb-8 md:mb-12">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -94,7 +94,7 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
             </div>
           )}
 
-          {/* Main HTML Content */}
+          {/* เนื้อหาข่าวที่บันทึกจาก Editor */}
           <div 
             className="news-content text-gray-800 dark:text-gray-200 text-base md:text-lg leading-relaxed md:leading-loose"
             dangerouslySetInnerHTML={{ __html: news.content || "<p>ไม่มีรายละเอียดเพิ่มเติม</p>" }}
@@ -102,21 +102,21 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
         </div>
       </article>
 
-      {/* Image Modal (Lightbox) */}
+      {/* Modal สำหรับขยายรูปภาพ */}
       {selectedImage && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" 
+          className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" 
           onClick={() => setSelectedImage(null)}
         >
           <button 
-            className="absolute top-6 right-6 md:top-10 md:right-10 w-10 h-10 md:w-14 md:h-14 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md transition-colors z-[110]" 
+            className="absolute top-6 right-6 md:top-10 md:right-10 w-10 h-10 md:w-14 md:h-14 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md transition-colors z-[210]" 
             onClick={() => setSelectedImage(null)}
           >
             <svg className="w-6 h-6 md:w-8 md:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <div className="relative w-full max-w-5xl h-[85vh] z-[100]" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-5xl h-[85vh] z-[200]" onClick={(e) => e.stopPropagation()}>
             <img 
               src={selectedImage} 
               alt="ภาพขยาย" 
@@ -126,7 +126,7 @@ export default function ShowNews({ news, onClose }: ShowNewsProps) {
         </div>
       )}
 
-      {/* Styles สำหรับ HTML ที่มาจาก Quill Editor */}
+      {/* ปรับแต่ง CSS สำหรับ HTML Content */}
       <style dangerouslySetInnerHTML={{ __html: `
         .news-content h1 { font-size: 1.8em; font-weight: 800; margin-top: 1.2em; margin-bottom: 0.6em; line-height: 1.3; }
         .news-content h2 { font-size: 1.5em; font-weight: 700; margin-top: 1.2em; margin-bottom: 0.6em; line-height: 1.3; }
