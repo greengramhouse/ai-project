@@ -9,8 +9,6 @@ import { triggerNewsRevalidation } from "@/lib/news-action";
 import { useLiff } from "../liff-front/layout";
 // นำเข้า Component EditNewsForm 
 import EditNewsForm from "../liff-front/editnews/page";
-// 🆕 นำเข้า Component ShowNews 
-import ShowNews from "./ShowNews";
 
 export type NewsData = {
   id: string;
@@ -30,8 +28,6 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
 
   const [newsList, setNewsList] = useState<NewsData[]>(initialNews);
   const [editingNews, setEditingNews] = useState<NewsData | null>(null);
-  // 🆕 State สำหรับการเปิดดูข่าว
-  const [viewingNews, setViewingNews] = useState<NewsData | null>(null);
 
   useEffect(() => {
     setNewsList(initialNews);
@@ -63,24 +59,6 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
       alert("เกิดข้อผิดพลาดในการลบข่าวสาร");
     }
   };
-
-  // ------------------------------------------------------------------
-  // 🆕 ถ้ามีการกดดูเนื้อหาข่าว ให้แสดง Modal เปิดอ่านข่าวสาร
-  // ------------------------------------------------------------------
-  if (viewingNews) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-gray-50 dark:bg-gray-900 overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-        <div className="min-h-screen py-10 px-5 transition-colors">
-          <div className="max-w-4xl mx-auto">
-            <ShowNews 
-              news={viewingNews} 
-              onClose={() => setViewingNews(null)} 
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // ------------------------------------------------------------------
   // ✅ เมื่อกดแก้ไข ครอบด้วย fixed inset-0 ให้เป็น Modal เต็มหน้าจอ ผุดขึ้นมา
@@ -128,8 +106,7 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
         return (
           <div
             key={news.id}
-            // 🆕 เปลี่ยนจาก router.push เป็น setViewingNews
-            onClick={() => setViewingNews(news)}
+            onClick={() => router.push(`/liff-front/newlist/${news.id}`)}
             className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer shrink-0 group block"
           >
             <div
