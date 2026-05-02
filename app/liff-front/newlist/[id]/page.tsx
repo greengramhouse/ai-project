@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase"; 
@@ -18,23 +18,29 @@ type NewsData = {
   createdAt?: string;
 };
 
-// ------------------------------------------------------------------
-// 1. แยกส่วนการทำงานหลักออกมาเป็น Component ลูก
-// ------------------------------------------------------------------
-function NewsDetailContent() {
+export default function NewsDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { theme, toggleTheme } = useLiff();
   
+  // 🌟 1. เพิ่ม State ตรวจสอบว่าหน้าเว็บโหลดเสร็จบนฝั่งผู้ใช้ (Client) หรือยัง
+  const [isMounted, setIsMounted] = useState(false);
   const [news, setNews] = useState<NewsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
 
+  // 🌟 2. สั่งให้ isMounted เป็น true เฉพาะตอนที่ผู้ใช้เปิดหน้าเว็บ
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // 🌟 3. ถ้ายังไม่ Mount (ตอน Vercel กำลัง Build) ให้ข้ามการดึงข้อมูลไปเลย
+    if (!isMounted) return;
+
     const fetchNewsDetail = async () => {
       if (!params?.id) return;
       
-      // 🚀 โลจิกดึงข้อมูลจริงจาก Firebase
       try {
         const docRef = doc(db, "news", params.id as string);
         const docSnap = await getDoc(docRef);
@@ -53,14 +59,14 @@ function NewsDetailContent() {
     };
 
     fetchNewsDetail();
-  }, [params?.id]);
+  }, [params?.id, isMounted]);
 
   const handleGoBack = () => {
     router.back();
   };
 
-  // 1. สถานะกำลังโหลด (แสดงตอนกำลังดึงข้อมูลจาก Firebase)
-  if (isLoading) {
+  // 🌟 4. ขณะที่ Vercel กำลัง Build หรือกำลังดึงข้อมูล จะโชว์หน้านี้แทน (ผ่านฉลุยแน่นอน)
+  if (!isMounted || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
         <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
@@ -69,7 +75,7 @@ function NewsDetailContent() {
     );
   }
 
-  // 2. สถานะไม่พบข้อมูล หรือ Error
+  // 5. สถานะไม่พบข้อมูล หรือ Error
   if (isError || !news) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors max-w-md mx-auto">
@@ -88,7 +94,7 @@ function NewsDetailContent() {
 
   const colorClass = news.color || "bg-blue-500";
 
-  // 3. แสดงผลข่าวแบบเต็ม (Detail Page)
+  // 6. แสดงผลข่าวแบบเต็ม (Detail Page)
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-gray-900' : 'bg-gray-50'} pb-24 max-w-md mx-auto shadow-2xl relative overflow-hidden flex flex-col transition-colors duration-300`}>
       
@@ -139,7 +145,7 @@ function NewsDetailContent() {
           {/* เนื้อหาบทความ */}
           <div className="p-6 md:p-8">
             
-            {/* 1. แสดงรูปภาพประกอบ (ถ้ามี) */}
+            {/* แสดงรูปภาพประกอบ */}
             {news.images && news.images.length > 0 && (
               <div className="grid gap-4 mb-8">
                 {news.images.map((url, idx) => (
@@ -157,7 +163,7 @@ function NewsDetailContent() {
               </div>
             )}
 
-            {/* 2. แสดง HTML จาก React-Quill */}
+            {/* แสดง HTML จาก React-Quill */}
             {news.content ? (
               <div 
                 className="quill-content text-gray-700 dark:text-gray-300 leading-relaxed text-[15px] md:text-base wrap-break-word"
@@ -190,21 +196,5 @@ function NewsDetailContent() {
       `}} />
 
     </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// 2. ครอบ Component หลักด้วย <Suspense> เพื่อแก้ปัญหา Vercel Build Error
-// ------------------------------------------------------------------
-export default function NewsDetailPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-6 text-center transition-colors">
-        <div className="w-12 h-12 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 dark:text-gray-400 font-medium">กำลังเตรียมหน้าข่าว...</p>
-      </div>
-    }>
-      <NewsDetailContent />
-    </Suspense>
   );
 }
