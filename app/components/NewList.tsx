@@ -4,11 +4,16 @@ import { useState, useEffect } from "react";
 import { doc, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { triggerNewsRevalidation } from "@/lib/news-action";
 // ⚠️ ในโปรเจกต์จริง ใช้ useLiff ของคุณเอง
-import { useLiff } from "../liff-front/layout";
-// นำเข้า Component EditNewsForm 
+// import { useLiff } from "../liff-front/layout";
+import { triggerNewsRevalidation } from "@/lib/news-action";
+// นำเข้า Component EditNewsForm ที่เราเพิ่งสร้าง
 import EditNewsForm from "../liff-front/editnews/page";
+// MOCK สำหรับ Canvas (ลบทิ้งเมื่อใช้จริง)
+const useLiff = () => ({
+  isReady: true,
+  profile: { userId: process.env.NEXT_PUBLIC_ADMIN_UID || "mock-admin-uid" },
+});
 
 export type NewsData = {
   id: string;
@@ -26,7 +31,10 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   const { profile } = useLiff();
   const router = useRouter();
 
+  // State สำหรับเก็บรายการข่าว
   const [newsList, setNewsList] = useState<NewsData[]>(initialNews);
+
+  // 🆕 State ควบคุมการแก้ไขข่าว (ถ้าเป็น null คือโชว์รายการ, ถ้ามีข้อมูลคือโชว์ฟอร์ม)
   const [editingNews, setEditingNews] = useState<NewsData | null>(null);
 
   useEffect(() => {
@@ -61,25 +69,22 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
   };
 
   // ------------------------------------------------------------------
-  // ✅ เมื่อกดแก้ไข ครอบด้วย fixed inset-0 ให้เป็น Modal เต็มหน้าจอ ผุดขึ้นมา
+  // 🆕 ถ้ามีการกดแก้ไข ให้สลับมาเรนเดอร์หน้า EditNewsForm ทันที
   // ------------------------------------------------------------------
   if (editingNews) {
     return (
-      <div className="fixed inset-0 z-[100] bg-gray-50 dark:bg-gray-900 overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-        <div className="min-h-screen py-10 px-5 transition-colors">
-          <div className="max-w-3xl mx-auto">
-            <EditNewsForm
-              initialData={editingNews}
-              onCancel={() => setEditingNews(null)}
-              onSuccess={(updatedNews) => {
-                setNewsList((prev) =>
-                  prev.map((n) => (n.id === updatedNews.id ? updatedNews : n))
-                );
-                setEditingNews(null);
-              }}
-            />
-          </div>
-        </div>
+      <div className="animate-in slide-in-from-right-4 duration-300">
+        <EditNewsForm
+          initialData={editingNews}
+          onCancel={() => setEditingNews(null)}
+          onSuccess={(updatedNews) => {
+            // อัปเดตข้อมูลในหน้า List แบบไม่ต้องรีเฟรช
+            setNewsList((prev) =>
+              prev.map((n) => (n.id === updatedNews.id ? updatedNews : n))
+            );
+            setEditingNews(null); // ปิดฟอร์มกลับมาหน้า List
+          }}
+        />
       </div>
     );
   }
@@ -109,10 +114,12 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
             onClick={() => router.push(`/liff-front/newlist/${news.id}`)}
             className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer shrink-0 group block"
           >
+            {/* Background accent */}
             <div
               className={`absolute top-0 right-0 w-16 md:w-24 h-16 md:h-24 ${colorClass} opacity-10 dark:opacity-20 rounded-bl-full transition-transform duration-300 group-hover:scale-110`}
             />
 
+            {/* Arrow hint */}
             <div className="absolute top-3 right-3 text-gray-300 group-hover:text-blue-500 transition">
               →
             </div>
@@ -135,12 +142,13 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
               คลิกเพื่ออ่านเพิ่มเติม →
             </p>
 
+            {/* Admin tools */}
             {isAdmin && (
               <div className="absolute bottom-4 right-4 flex items-center gap-2 z-10">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // ตั้งค่าข่าวที่จะแก้ไขเพื่อให้ฟอร์มผุดขึ้นมา
+                    // 🆕 ตั้งค่าให้ Component นี้เข้าสู่โหมดแก้ไข
                     setEditingNews(news);
                   }}
                   className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 text-blue-500 rounded-full shadow border border-gray-100 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors"
