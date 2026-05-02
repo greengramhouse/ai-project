@@ -4,8 +4,16 @@ import { useState, useEffect } from "react";
 import { doc, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { useLiff } from "../liff-front/layout";
+// ⚠️ ในโปรเจกต์จริง ใช้ useLiff ของคุณเอง
+// import { useLiff } from "../liff-front/layout";
 import { triggerNewsRevalidation } from "@/lib/news-action";
+import EditNewsForm from "../liff-front/editnews/page";
+
+// MOCK สำหรับ Canvas (ลบทิ้งเมื่อใช้จริง)
+const useLiff = () => ({
+  isReady: true,
+  profile: { userId: process.env.NEXT_PUBLIC_ADMIN_UID || "mock-admin-uid" },
+});
 
 export type NewsData = {
   id: string;
@@ -16,17 +24,19 @@ export type NewsData = {
   content?: string;
   images?: string[];
   createdAt?: string;
+  updatedAt?: string;
 };
 
-// 📌 รับข้อมูล initialNews ที่ Server ดึงมาให้เป็น Props
 export default function NewsList({ initialNews = [] }: { initialNews: NewsData[] }) {
   const { profile } = useLiff();
   const router = useRouter();
-  
-  // สร้าง State มารับข้อมูล เพื่อให้เวลาลบข่าว หน้าจอจะได้อัปเดตหายไปทันที
+
+  // State สำหรับเก็บรายการข่าว
   const [newsList, setNewsList] = useState<NewsData[]>(initialNews);
 
-  // อัปเดตข้อมูลเมื่อ Server ส่งข้อมูลใหม่มาให้
+  // 🆕 State ควบคุมการแก้ไขข่าว (ถ้าเป็น null คือโชว์รายการ, ถ้ามีข้อมูลคือโชว์ฟอร์ม)
+  const [editingNews, setEditingNews] = useState<NewsData | null>(null);
+
   useEffect(() => {
     setNewsList(initialNews);
   }, [initialNews]);
@@ -44,26 +54,44 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
 
     if (!db) {
       alert(`ลบข่าวสาร "${title}" สำเร็จ (โหมดพรีวิว)`);
-      setNewsList(prev => prev.filter(news => news.id !== id));
+      setNewsList((prev) => prev.filter((news) => news.id !== id));
       return;
     }
 
     try {
-      // 1. ลบข้อมูลจากฐานข้อมูล Firebase
       await deleteDoc(doc(db, "news", id));
-      
-      // 2. อัปเดตหน้าจอโดยลบข่าวนี้ออกจาก State ทันที (ไม่ต้องรอรีเฟรช)
-      setNewsList(prev => prev.filter(news => news.id !== id));
+      setNewsList((prev) => prev.filter((news) => news.id !== id));
       await triggerNewsRevalidation();
-      
-      // 💡 หมายเหตุ: หากต้องการให้ Cache บน Server ถูกล้างด้วย 
-      // ในอนาคตควรใช้ Server Action ในการลบแล้วเรียก revalidateTag('news')
     } catch (error) {
       console.error("Error deleting news:", error);
       alert("เกิดข้อผิดพลาดในการลบข่าวสาร");
     }
   };
 
+  // ------------------------------------------------------------------
+  // 🆕 ถ้ามีการกดแก้ไข ให้สลับมาเรนเดอร์หน้า EditNewsForm ทันที
+  // ------------------------------------------------------------------
+  if (editingNews) {
+    return (
+      <div className="animate-in slide-in-from-right-4 duration-300">
+        <EditNewsForm
+          initialData={editingNews}
+          onCancel={() => setEditingNews(null)}
+          onSuccess={(updatedNews) => {
+            // อัปเดตข้อมูลในหน้า List แบบไม่ต้องรีเฟรช
+            setNewsList((prev) =>
+              prev.map((n) => (n.id === updatedNews.id ? updatedNews : n))
+            );
+            setEditingNews(null); // ปิดฟอร์มกลับมาหน้า List
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // หน้า UI รายการข่าวปกติ
+  // ------------------------------------------------------------------
   if (newsList.length === 0) {
     return (
       <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
@@ -84,8 +112,7 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
           <div
             key={news.id}
             onClick={() => router.push(`/liff-front/newlist/${news.id}`)}
-            className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden 
-            hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer shrink-0 group block"
+            className="min-w-60 md:min-w-[320px] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl p-5 shadow-sm snap-start relative overflow-hidden hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer shrink-0 group block"
           >
             {/* Background accent */}
             <div
@@ -121,7 +148,8 @@ export default function NewsList({ initialNews = [] }: { initialNews: NewsData[]
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    router.push(`/liff-front/editnew/${news.id}`);
+                    // 🆕 ตั้งค่าให้ Component นี้เข้าสู่โหมดแก้ไข
+                    setEditingNews(news);
                   }}
                   className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 text-blue-500 rounded-full shadow border border-gray-100 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors"
                   title="แก้ไขข่าว"
